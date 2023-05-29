@@ -148,7 +148,7 @@ class LinkplayCli:
             status_string = '⏹️'
 
         output_string = f'{status_string}  {artist} - {title}'
-        if args.no_time:
+        if not args.no_time:
             if int(player_status['curpos']) > int(player_status['totlen']):
                 # There's a bug where the current position is some constant garbage value
                 current_position_in_ms = '?:??'
