@@ -132,17 +132,11 @@ class LinkplayCli:
     def _decode_string(string):
         return bytes.fromhex(string).decode('utf-8')
 
-    def now(self, _):
+    def now(self, args):
         UNICODE_LTR_MARK = u'\u200E'
         player_status = self._get_player_status()
 
         status = player_status['status']
-        if int(player_status['curpos']) > int(player_status['totlen']):
-            # There's a bug where the current position is some constant garbage value
-            current_position_in_ms = '?:??'
-        else:
-            current_position_in_ms = self._convert_ms_to_duration_string(player_status['curpos'])
-        total_length_in_ms = self._convert_ms_to_duration_string(player_status['totlen'])
         title = self._decode_string(player_status['Title'])
         artist = self._decode_string(player_status['Artist'])
 
@@ -153,7 +147,18 @@ class LinkplayCli:
         else:
             status_string = '⏹️'
 
-        print(f'{status_string}  {artist} - {title} {UNICODE_LTR_MARK}[{current_position_in_ms}/{total_length_in_ms}]')
+        output_string = f'{status_string}  {artist} - {title}'
+        if args.no_time:
+            if int(player_status['curpos']) > int(player_status['totlen']):
+                # There's a bug where the current position is some constant garbage value
+                current_position_in_ms = '?:??'
+            else:
+                current_position_in_ms = self._convert_ms_to_duration_string(player_status['curpos'])
+            total_length_in_ms = self._convert_ms_to_duration_string(player_status['totlen'])
+
+            output_string += f' {UNICODE_LTR_MARK}[{current_position_in_ms}/{total_length_in_ms}]'
+
+        print(output_string)
 
     def _run_player_command_expecting_ok_response(self, command):
         response = self._run_command(command)
@@ -227,6 +232,7 @@ def _parse_args():
 
     now_parser = subparsers.add_parser('now', parents=[common_parser], help='Show what\'s playing now')
     now_parser.set_defaults(func=LinkplayCli.now)
+    now_parser.add_argument('--no-time', action='store_true', help='Don\'t display the current position and length')
 
     pause_parser = subparsers.add_parser('pause', parents=[common_parser], help='Pause current track')
     pause_parser.set_defaults(func=LinkplayCli.pause)
