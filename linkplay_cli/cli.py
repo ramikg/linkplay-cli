@@ -1,20 +1,13 @@
 import argparse
-import asyncio
-from http import HTTPStatus
 import ipaddress
 import re
 import sys
-from pathlib import Path
 
-from async_upnp_client.search import async_search
-import requests
+from linkplay_cli.discovery import discover_linkplay_address
+from linkplay_cli.utils import perform_get_request
 
 
 class LinkplayCliCommandFailedException(Exception):
-    pass
-
-
-class LinkplayCliGetRequestFailedException(Exception):
     pass
 
 
@@ -22,72 +15,10 @@ class LinkplayCliInvalidVolumeArgumentException(Exception):
     pass
 
 
-class LinkplayCliDeviceNotFoundException(Exception):
-    pass
-
-
 class LinkplayCli:
-    OK_MESSAGE = 'OK'
-    GET_REQUEST_TIMEOUT_SECONDS = 5
-    UPNP_DISCOVER_TIMEOUT_SECONDS = 5
-    UPNP_DEVICE_TYPE = 'urn:schemas-upnp-org:device:MediaRenderer:1'
-    CACHE_FILE = Path.home() / '.linkplay_cached_device_address'
-
     def __init__(self, verbose, address=None) -> None:
         self._verbose = verbose
-        self._ip_address = address or self._discover_address()
-
-    @staticmethod
-    def _is_speaker_ip_address(ip_address):
-        if ip_address is None:
-            return False
-
-        response = requests.get(f'http://{ip_address}/httpapi.asp?command=setPlayerCmd',
-                                timeout=LinkplayCli.GET_REQUEST_TIMEOUT_SECONDS)
-
-        return response.status_code == HTTPStatus.OK
-
-    def _discover_address(self):
-        try:
-            if LinkplayCli.CACHE_FILE.exists():
-                cached_ip_address = ipaddress.IPv4Address(LinkplayCli.CACHE_FILE.read_text())
-                if LinkplayCli._is_speaker_ip_address(cached_ip_address):
-                    if self._verbose:
-                        print(f'Using cached IP address {cached_ip_address}')
-                    return cached_ip_address
-        except ipaddress.AddressValueError:
-            print('Cached IP address is corrupted. Rediscovering.')
-        except requests.exceptions.RequestException:
-            print('Connection failed. Rediscovering.')
-
-        print('Starting device discovery...')
-        linkplay_ip_addresses = []
-
-        async def add_speaker_to_list(upnp_device):
-            device_ip_address = upnp_device.get('_host')
-            if not LinkplayCli._is_speaker_ip_address(device_ip_address):
-                return
-
-            linkplay_ip_addresses.append(device_ip_address)
-
-        # Run synchronously, as our code is not async
-        asyncio.new_event_loop().run_until_complete(async_search(
-            search_target=LinkplayCli.UPNP_DEVICE_TYPE,
-            timeout=LinkplayCli.UPNP_DISCOVER_TIMEOUT_SECONDS,
-            async_callback=add_speaker_to_list
-        ))
-
-        if len(linkplay_ip_addresses) != 1:
-            if self._verbose and linkplay_ip_addresses:
-                print(f'Linkplay devices found: {linkplay_ip_addresses}')
-            raise LinkplayCliDeviceNotFoundException(f'Found {len(linkplay_ip_addresses)} devices. '
-                                                     'Please specify IP address manually.')
-
-        ip_address = linkplay_ip_addresses[0]
-        LinkplayCli.CACHE_FILE.write_text(ip_address)
-        print(f'Discovered device at IP address {ip_address}. Caching for future use.')
-
-        return ipaddress.IPv4Address(ip_address)
+        self._ip_address = address or discover_linkplay_address(verbose)
 
     @staticmethod
     def verify_volume_argument(arg):
@@ -98,22 +29,10 @@ class LinkplayCli:
         return arg
 
     def _run_command(self, command, expect_json=False):
-        params = {'command': command}
-        response = requests.get(f'http://{self._ip_address}/httpapi.asp',
-                                params=params,
-                                timeout=LinkplayCli.GET_REQUEST_TIMEOUT_SECONDS)
-
-        verbose_message = f'GET {response.request.url} returned {response.status_code}: {response.text}'
-
-        if response.status_code != HTTPStatus.OK:
-            raise LinkplayCliGetRequestFailedException(verbose_message)
-        if self._verbose:
-            print(verbose_message)
-
-        if expect_json:
-            return response.json()
-        else:
-            return response.text
+        return perform_get_request(f'http://{self._ip_address}/httpapi.asp',
+                                   verbose=self._verbose,
+                                   params={'command': command},
+                                   expect_json=expect_json)
 
     @staticmethod
     def _convert_ms_to_duration_string(ms):
@@ -160,36 +79,38 @@ class LinkplayCli:
 
         print(output_string)
 
-    def _run_player_command_expecting_ok_response(self, command):
-        response = self._run_command(command)
-        if response != LinkplayCli.OK_MESSAGE:
-            raise LinkplayCliCommandFailedException(f'Command {command} failed with response {response}.')
+    def _run_player_command_expecting_ok_output(self, command):
+        OK_MESSAGE = 'OK'
+
+        output = self._run_command(command)
+        if output != OK_MESSAGE:
+            raise LinkplayCliCommandFailedException(f'Command {command} failed with output {output}.')
 
     def _get_player_status(self):
         return self._run_command('getPlayerStatus', expect_json=True)
 
     def pause(self, _):
-        self._run_player_command_expecting_ok_response('setPlayerCmd:pause')
+        self._run_player_command_expecting_ok_output('setPlayerCmd:pause')
         print('Playback paused')
 
     def play(self, _):
-        self._run_player_command_expecting_ok_response('setPlayerCmd:resume')
+        self._run_player_command_expecting_ok_output('setPlayerCmd:resume')
         print('Playback resumed')
 
     def next(self, _):
-        self._run_player_command_expecting_ok_response('setPlayerCmd:next')
+        self._run_player_command_expecting_ok_output('setPlayerCmd:next')
         print('Switched to next track')
 
     def previous(self, _):
-        self._run_player_command_expecting_ok_response('setPlayerCmd:prev')
+        self._run_player_command_expecting_ok_output('setPlayerCmd:prev')
         print('Switched to previous track')
 
     def mute(self, _):
-        self._run_player_command_expecting_ok_response('setPlayerCmd:mute:1')
+        self._run_player_command_expecting_ok_output('setPlayerCmd:mute:1')
         print('Muted')
 
     def unmute(self, _):
-        self._run_player_command_expecting_ok_response('setPlayerCmd:mute:0')
+        self._run_player_command_expecting_ok_output('setPlayerCmd:mute:0')
         print('Unmuted')
 
     def volume(self, volume_args):
@@ -212,7 +133,7 @@ class LinkplayCli:
             # Negative input is interpreted as "decrease volume"
             new_volume = min(100, int(volume_arg))
 
-        self._run_player_command_expecting_ok_response(f'setPlayerCmd:vol:{new_volume}')
+        self._run_player_command_expecting_ok_output(f'setPlayerCmd:vol:{new_volume}')
         print(f'Volume: {orig_volume} -> {new_volume}{muted_string}')
 
     def raw(self, raw_args):
