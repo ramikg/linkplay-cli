@@ -2,7 +2,12 @@ import argparse
 import ipaddress
 import re
 import sys
+import time
+from pathlib import Path
 
+from Crypto.Cipher import ARC4
+
+from linkplay_cli import config
 from linkplay_cli.discovery import discover_linkplay_address
 from linkplay_cli.firmware_update import print_latest_version_and_release_date
 from linkplay_cli.utils import perform_get_request
@@ -169,6 +174,17 @@ class LinkplayCli:
 
         self._print_latest_version_and_release_date(model, hardware)
 
+    def getsyslog(self, args):
+        encrypted_log = perform_get_request(f'http://{self._ip_address}/data/sys.log', verbose=self._verbose)
+
+        output_file_path = args.output_file or Path.cwd() / ('sys.log-' + time.strftime('%Y%m%d%H%M%S'))
+
+        with open(output_file_path, 'wb') as output_file:
+            for chunk_start in range(0, len(encrypted_log), config.log_chunk_size):
+                chunk = encrypted_log[chunk_start:chunk_start + config.log_chunk_size]
+                cipher = ARC4.new(config.log_key)
+                output_file.write(cipher.decrypt(chunk))
+
 
 def _parse_args():
     main_parser = argparse.ArgumentParser(epilog='For more information about a given command, use "<command> -h"')
@@ -216,6 +232,10 @@ def _parse_args():
 
     info_parser = subparsers.add_parser('info', parents=[common_parser], help='Get basic device information')
     info_parser.set_defaults(func=LinkplayCli.info)
+
+    getsyslog_parser = subparsers.add_parser('getsyslog', parents=[common_parser], help='Download device log file')
+    getsyslog_parser.set_defaults(func=LinkplayCli.getsyslog)
+    getsyslog_parser.add_argument('--output-file', help='Output path. Defaults to "sys.log-<timestamp>"')
 
     if len(sys.argv) < 2:
         main_parser.print_help()
