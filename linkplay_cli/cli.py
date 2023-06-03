@@ -4,6 +4,7 @@ import re
 import sys
 
 from linkplay_cli.discovery import discover_linkplay_address
+from linkplay_cli.firmware_update import print_latest_version_and_release_date
 from linkplay_cli.utils import perform_get_request
 
 
@@ -139,6 +140,35 @@ class LinkplayCli:
     def raw(self, raw_args):
         print(self._run_command(raw_args.command))
 
+    @staticmethod
+    def _print_info_if_not_empty(info_name, value):
+        if value:
+            print(f'{info_name}: {value}')
+
+    def _print_latest_version_and_release_date(self, model, hardware):
+        update_server = self._run_command('GetUpdateServer')
+
+        print_latest_version_and_release_date(update_server, model, hardware, self._verbose)
+
+    def info(self, _):
+        status = self._run_command('getStatus', expect_json=True)
+
+        model = status["project"]
+        hardware = status["hardware"]
+
+        print(f'Device name: {status["DeviceName"]}')
+        print(f'Model: {model}')
+        self._print_info_if_not_empty('Wireless IP address', status["apcli0"])
+        self._print_info_if_not_empty('Ethernet IP address', status["eth2"])
+        print(f'UUID: {status["uuid"]}')
+        print(f'Hardware: {hardware}')
+        self._print_info_if_not_empty('MCU version', status["mcu_ver"])
+        self._print_info_if_not_empty('DSP version', status["dsp_ver"])
+        self._print_info_if_not_empty('DSP version', status["dsp_ver"])
+        print(f'Firmware version: {status["firmware"]} (released {status["Release"]})')
+
+        self._print_latest_version_and_release_date(model, hardware)
+
 
 def _parse_args():
     main_parser = argparse.ArgumentParser(epilog='For more information about a given command, use "<command> -h"')
@@ -183,6 +213,9 @@ def _parse_args():
     raw_parser = subparsers.add_parser('raw', parents=[common_parser], help='Execute a raw Linkplay command')
     raw_parser.set_defaults(func=LinkplayCli.raw)
     raw_parser.add_argument('command', help='The LinkPlay API command to execute')
+
+    info_parser = subparsers.add_parser('info', parents=[common_parser], help='Get basic device information')
+    info_parser.set_defaults(func=LinkplayCli.info)
 
     if len(sys.argv) < 2:
         main_parser.print_help()

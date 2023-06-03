@@ -14,6 +14,8 @@ setup(name='linkplay-cli',
       packages=find_packages(),
       install_requires=[
           'async_upnp_client',
+          'beautifulsoup4',
+          'lxml',
           'requests'
       ],
       entry_points={
