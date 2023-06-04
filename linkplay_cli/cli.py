@@ -5,6 +5,7 @@ import sys
 import time
 from pathlib import Path
 
+from bs4 import BeautifulSoup
 from Crypto.Cipher import ARC4
 
 from linkplay_cli import config
@@ -147,7 +148,7 @@ class LinkplayCli:
 
     @staticmethod
     def _print_info_if_not_empty(info_name, value):
-        if value:
+        if value not in ['', '0']:
             print(f'{info_name}: {value}')
 
     def _print_latest_version_and_release_date(self, model, hardware):
@@ -163,19 +164,21 @@ class LinkplayCli:
 
         print(f'Device name: {status["DeviceName"]}')
         print(f'Model: {model}')
-        self._print_info_if_not_empty('Wireless IP address', status["apcli0"])
+        self._print_info_if_not_empty('Wi-Fi IP address', status["apcli0"])
+        self._print_info_if_not_empty('Wi-Fi SSID', self._decode_string(status["essid"]))
         self._print_info_if_not_empty('Ethernet IP address', status["eth2"])
         print(f'UUID: {status["uuid"]}')
         print(f'Hardware: {hardware}')
         self._print_info_if_not_empty('MCU version', status["mcu_ver"])
-        self._print_info_if_not_empty('DSP version', status["dsp_ver"])
         self._print_info_if_not_empty('DSP version', status["dsp_ver"])
         print(f'Firmware version: {status["firmware"]} (released {status["Release"]})')
 
         self._print_latest_version_and_release_date(model, hardware)
 
     def getsyslog(self, args):
-        encrypted_log = perform_get_request(f'http://{self._ip_address}/data/sys.log', verbose=self._verbose)
+        download_page = self._run_command('getsyslog')  # The download URL is always the same, but needs to be refreshed
+        download_url = f'http://{self._ip_address}/' + BeautifulSoup(download_page, 'lxml').find('a')['href']
+        encrypted_log = perform_get_request(download_url, verbose=False, expect_bytes=True)
 
         output_file_path = args.output_file or Path.cwd() / ('sys.log-' + time.strftime('%Y%m%d%H%M%S'))
 
@@ -184,6 +187,8 @@ class LinkplayCli:
                 chunk = encrypted_log[chunk_start:chunk_start + config.log_chunk_size]
                 cipher = ARC4.new(config.log_key)
                 output_file.write(cipher.decrypt(chunk))
+
+        print(f'Log file downloaded to {output_file_path}')
 
 
 def _parse_args():
@@ -235,7 +240,7 @@ def _parse_args():
 
     getsyslog_parser = subparsers.add_parser('getsyslog', parents=[common_parser], help='Download device log file')
     getsyslog_parser.set_defaults(func=LinkplayCli.getsyslog)
-    getsyslog_parser.add_argument('--output-file', help='Output path. Defaults to "sys.log-<timestamp>"')
+    getsyslog_parser.add_argument('--output-file', '-o', help='Output path. Defaults to "./sys.log-<timestamp>"')
 
     if len(sys.argv) < 2:
         main_parser.print_help()

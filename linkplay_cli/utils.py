@@ -9,7 +9,7 @@ class LinkplayCliGetRequestFailedException(Exception):
     pass
 
 
-def perform_get_request(url, verbose, params=None, expect_json=False):
+def perform_get_request(url, verbose, params=None, expect_json=False, expect_bytes=False):
     response = requests.get(url, params=params, timeout=config.get_request_timeout_seconds)
 
     verbose_message = f'GET {response.request.url} returned {response.status_code}: {response.text}'
@@ -21,5 +21,7 @@ def perform_get_request(url, verbose, params=None, expect_json=False):
 
     if expect_json:
         return response.json()
+    elif expect_bytes:
+        return response.content
     else:
         return response.text
