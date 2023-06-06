@@ -2,6 +2,7 @@ import argparse
 import ipaddress
 import re
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -180,7 +181,9 @@ class LinkplayCli:
         download_url = f'http://{self._ip_address}/' + BeautifulSoup(download_page, 'lxml').find('a')['href']
         encrypted_log = perform_get_request(download_url, verbose=False, expect_bytes=True)
 
-        output_file_path = args.output_file or Path.cwd() / ('sys.log-' + time.strftime('%Y%m%d%H%M%S'))
+        output_file_dir = Path(args.output_dir or tempfile.gettempdir())
+        output_file_dir.mkdir(parents=True, exist_ok=True)
+        output_file_path = output_file_dir / ('sys.log-' + time.strftime('%Y%m%d%H%M%S'))
 
         with open(output_file_path, 'wb') as output_file:
             for chunk_start in range(0, len(encrypted_log), config.log_chunk_size):
@@ -240,7 +243,7 @@ def _parse_args():
 
     getsyslog_parser = subparsers.add_parser('getsyslog', parents=[common_parser], help='Download device log file')
     getsyslog_parser.set_defaults(func=LinkplayCli.getsyslog)
-    getsyslog_parser.add_argument('--output-file', '-o', help='Output path. Defaults to "./sys.log-<timestamp>"')
+    getsyslog_parser.add_argument('--output-dir', help='Output directory. Defaults to gettempdir()')
 
     if len(sys.argv) < 2:
         main_parser.print_help()
