@@ -205,45 +205,45 @@ def _parse_args():
         description='Note that some commands do not work in some scenarios (e.g. when playing from YouTube)',
         help='Command')
 
-    now_parser = subparsers.add_parser('now', parents=[common_parser], help='Show what\'s playing now')
-    now_parser.set_defaults(func=LinkplayCli.now)
-    now_parser.add_argument('--no-time', action='store_true', help='Don\'t display the current position and length')
+    subparser = subparsers.add_parser('now', parents=[common_parser], help='Show what\'s playing now')
+    subparser.set_defaults(func=LinkplayCli.now)
+    subparser.add_argument('--no-time', action='store_true', help='Don\'t display the current position and length')
 
-    pause_parser = subparsers.add_parser('pause', parents=[common_parser], help='Pause current track')
-    pause_parser.set_defaults(func=LinkplayCli.pause)
+    subparser = subparsers.add_parser('pause', parents=[common_parser], help='Pause current track')
+    subparser.set_defaults(func=LinkplayCli.pause)
 
-    play_parser = subparsers.add_parser('play', parents=[common_parser], help='Resume current track')
-    play_parser.set_defaults(func=LinkplayCli.play)
+    subparser = subparsers.add_parser('play', parents=[common_parser], help='Resume current track')
+    subparser.set_defaults(func=LinkplayCli.play)
 
-    next_parser = subparsers.add_parser('next', parents=[common_parser], help='Play next track')
-    next_parser.set_defaults(func=LinkplayCli.next)
+    subparser = subparsers.add_parser('next', parents=[common_parser], help='Play next track')
+    subparser.set_defaults(func=LinkplayCli.next)
 
-    previous_parser = subparsers.add_parser('previous', parents=[common_parser], help='Play previous track')
-    previous_parser.set_defaults(func=LinkplayCli.previous)
+    subparser = subparsers.add_parser('previous', parents=[common_parser], help='Play previous track')
+    subparser.set_defaults(func=LinkplayCli.previous)
 
-    raw_parser = subparsers.add_parser('volume', parents=[common_parser], help='Set/get current volume')
-    raw_parser.set_defaults(func=LinkplayCli.volume)
-    raw_parser.add_argument('new_volume', type=LinkplayCli.verify_volume_argument, nargs='?',
+    subparser = subparsers.add_parser('volume', parents=[common_parser], help='Set/get current volume')
+    subparser.set_defaults(func=LinkplayCli.volume)
+    subparser.add_argument('new_volume', type=LinkplayCli.verify_volume_argument, nargs='?',
                             help='+<num>/-<num> to increase/decrease volume by num; '
                                  '<num> to set volume to num; '
                                  'omit to show volume')
 
-    previous_parser = subparsers.add_parser('mute', parents=[common_parser], help='Mute')
-    previous_parser.set_defaults(func=LinkplayCli.mute)
+    subparser = subparsers.add_parser('mute', parents=[common_parser], help='Mute')
+    subparser.set_defaults(func=LinkplayCli.mute)
 
-    previous_parser = subparsers.add_parser('unmute', parents=[common_parser], help='Unmute')
-    previous_parser.set_defaults(func=LinkplayCli.unmute)
+    subparser = subparsers.add_parser('unmute', parents=[common_parser], help='Unmute')
+    subparser.set_defaults(func=LinkplayCli.unmute)
 
-    raw_parser = subparsers.add_parser('raw', parents=[common_parser], help='Execute a raw Linkplay command')
-    raw_parser.set_defaults(func=LinkplayCli.raw)
-    raw_parser.add_argument('command', help='The LinkPlay API command to execute')
+    subparser = subparsers.add_parser('raw', parents=[common_parser], help='Execute a raw Linkplay command')
+    subparser.set_defaults(func=LinkplayCli.raw)
+    subparser.add_argument('command', help='The LinkPlay API command to execute')
 
-    info_parser = subparsers.add_parser('info', parents=[common_parser], help='Get basic device information')
-    info_parser.set_defaults(func=LinkplayCli.info)
+    subparser = subparsers.add_parser('info', parents=[common_parser], help='Get basic device information')
+    subparser.set_defaults(func=LinkplayCli.info)
 
-    getsyslog_parser = subparsers.add_parser('getsyslog', parents=[common_parser], help='Download device log file')
-    getsyslog_parser.set_defaults(func=LinkplayCli.getsyslog)
-    getsyslog_parser.add_argument('--output-dir', help='Output directory. Defaults to gettempdir()')
+    subparser = subparsers.add_parser('getsyslog', parents=[common_parser], help='Download device log file')
+    subparser.set_defaults(func=LinkplayCli.getsyslog)
+    subparser.add_argument('--output-dir', help='Output directory. Defaults to gettempdir()')
 
     if len(sys.argv) < 2:
         main_parser.print_help()
