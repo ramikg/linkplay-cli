@@ -20,7 +20,7 @@ class LinkplayCliCommandFailedException(Exception):
     pass
 
 
-class LinkplayCliInvalidVolumeArgumentException(Exception):
+class LinkplayCliInvalidArgumentException(Exception):
     pass
 
 
@@ -33,7 +33,7 @@ class LinkplayCli:
     def verify_volume_argument(arg):
         match_result = re.match(r'^[-+]?(\d+)$', arg)
         if match_result is None:
-            raise LinkplayCliInvalidVolumeArgumentException(f'Invalid argument "{arg}". See the command\'s help.')
+            raise LinkplayCliInvalidArgumentException(f'Invalid argument "{arg}". See the command\'s help.')
 
         return arg
 
@@ -44,10 +44,7 @@ class LinkplayCli:
                                    expect_json=expect_json)
 
     @staticmethod
-    def _convert_ms_to_duration_string(ms):
-        ms = int(ms)
-
-        seconds, _ = divmod(ms, 1000)
+    def _convert_seconds_to_duration_string(seconds):
         minutes, seconds = divmod(seconds, 60)
         hours, minutes = divmod(minutes, 60)
 
@@ -55,6 +52,12 @@ class LinkplayCli:
             return f'{hours}:{minutes:02}:{seconds:02}'
         else:
             return f'{minutes}:{seconds:02}'
+
+    def _convert_ms_to_duration_string(self, ms):
+        ms = int(ms)
+
+        seconds, _ = divmod(ms, 1000)
+        return self._convert_seconds_to_duration_string(seconds)
 
     @staticmethod
     def _decode_string(string):
@@ -113,6 +116,25 @@ class LinkplayCli:
     def previous(self, _):
         self._run_player_command_expecting_ok_output('setPlayerCmd:prev')
         print('Switched to previous track')
+
+    def seek(self, seek_args):
+        new_position = seek_args.new_position
+        time_parts = new_position.split(':')
+        if len(time_parts) > 3:
+            raise LinkplayCliInvalidArgumentException(f'Invalid argument "{new_position}". See the command\'s help.')
+        if any([int(time_part) < 0 for time_part in time_parts]):
+            raise LinkplayCliInvalidArgumentException(f'Invalid argument "{new_position}". Use positive integers only.')
+
+        seconds_to_seek = 0
+        multiplier = 1
+        for time_part in reversed(time_parts):
+            if int(time_part) < 0:
+                raise LinkplayCliInvalidArgumentException(f'')
+            seconds_to_seek += int(time_part) * multiplier
+            multiplier *= 60
+
+        self._run_player_command_expecting_ok_output(f'setPlayerCmd:seek:{seconds_to_seek}')
+        print(f'Position changed to {self._convert_seconds_to_duration_string(seconds_to_seek)}')
 
     def mute(self, _):
         self._run_player_command_expecting_ok_output('setPlayerCmd:mute:1')
@@ -239,6 +261,13 @@ def _parse_args():
 
     subparser = subparsers.add_parser('previous', parents=[common_parser], help='Play previous track')
     subparser.set_defaults(func=LinkplayCli.previous)
+
+    subparser = subparsers.add_parser('seek', parents=[common_parser], help='Seek to a specific track position')
+    subparser.set_defaults(func=LinkplayCli.seek)
+    subparser.add_argument('new_position',
+                            help='Acceptable formats: '
+                                 '"<hours>:<minutes>:<seconds>" or "<minutes>:<seconds>" or "<seconds>".\n'
+                                 'E.g.: "4:21" or (equivalently) "261"')
 
     subparser = subparsers.add_parser('volume', parents=[common_parser], help='Set/get current volume')
     subparser.set_defaults(func=LinkplayCli.volume)
