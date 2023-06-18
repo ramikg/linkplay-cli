@@ -12,6 +12,8 @@ pip install linkplay-cli
 
 After installing, run `linkplay-cli -h` to get started.
 
+_(Requirement: Python 3.6+)_
+
 ## FAQ
 
 ### I'm getting the error `command not found: linkplay-cli` 
