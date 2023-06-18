@@ -1,5 +1,6 @@
 import argparse
 import ipaddress
+import math
 import re
 import sys
 import tempfile
@@ -157,6 +158,18 @@ class LinkplayCli:
 
         print_latest_version_and_release_date(update_server, model, hardware, self._verbose)
 
+    @staticmethod
+    def _parse_timezone(timezone_string):
+        timezone = float(timezone_string)
+        fractional_part, integer_part = math.modf(abs(timezone))
+        fractional_string = f':{int(60 * fractional_part):02}' if fractional_part else ''
+        integer_string = f'{int(integer_part):02}'
+        sign_string = '+' if timezone >= 0 else '-'
+        return f'{sign_string}{integer_string}{fractional_string}'
+
+    def _status_to_time_string(self, status):
+        return f'{status["date"]} {status["time"]}{self._parse_timezone(status["tz"])}'
+
     def info(self, _):
         status = self._run_command('getStatus', expect_json=True)
 
@@ -165,6 +178,7 @@ class LinkplayCli:
 
         print(f'Device name: {status["DeviceName"]}')
         print(f'Model: {model}')
+        print(f'Device time: {self._status_to_time_string(status)}')
         self._print_info_if_not_empty('Wi-Fi IP address', status["apcli0"])
         self._print_info_if_not_empty('Wi-Fi SSID', self._decode_string(status["essid"]))
         self._print_info_if_not_empty('Ethernet IP address', status["eth2"])
@@ -175,6 +189,11 @@ class LinkplayCli:
         print(f'Firmware version: {status["firmware"]} (released {status["Release"]})')
 
         self._print_latest_version_and_release_date(model, hardware)
+
+    def date(self, _):
+        status = self._run_command('getStatus', expect_json=True)
+
+        print(self._status_to_time_string(status))
 
     def getsyslog(self, args):
         download_page = self._run_command('getsyslog')  # The download URL is always the same, but needs to be refreshed
@@ -240,6 +259,9 @@ def _parse_args():
 
     subparser = subparsers.add_parser('info', parents=[common_parser], help='Get basic device information')
     subparser.set_defaults(func=LinkplayCli.info)
+
+    subparser = subparsers.add_parser('date', parents=[common_parser], help='Print device date and time')
+    subparser.set_defaults(func=LinkplayCli.date)
 
     subparser = subparsers.add_parser('getsyslog', parents=[common_parser], help='Download device log file')
     subparser.set_defaults(func=LinkplayCli.getsyslog)
