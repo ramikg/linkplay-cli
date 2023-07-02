@@ -65,11 +65,13 @@ class LinkplayCli:
 
     def now(self, args):
         UNICODE_LTR_MARK = u'\u200E'
+        UNKNOWN_NAME_STRING = 'Unknown'
+
         player_status = self._get_player_status()
 
         status = player_status['status']
-        title = self._decode_string(player_status['Title'])
-        artist = self._decode_string(player_status['Artist'])
+        artist = self._decode_string(player_status['Artist']) or UNKNOWN_NAME_STRING
+        title = self._decode_string(player_status['Title']) or UNKNOWN_NAME_STRING
 
         if status == 'play':
             status_string = '▶️'
