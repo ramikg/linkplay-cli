@@ -1,7 +1,6 @@
 from bs4 import BeautifulSoup
-import requests
 
-from linkplay_cli.utils import perform_get_request
+from linkplay_cli.utils import perform_get_request, LinkplayCliGetRequestFailedException
 
 
 class LinkplayCliFirmwareUpdateNotFoundException(Exception):
@@ -45,7 +44,7 @@ def print_latest_version_and_release_date(update_server_url, model, hardware, ve
     try:
         version_file_url = _find_version_file_url(update_server_url, model, HARDWARE_PREFIX + hardware)
         version_file_lines = perform_get_request(version_file_url, verbose=verbose).splitlines()
-    except (AttributeError, requests.exceptions.RequestException, LinkplayCliFirmwareUpdateNotFoundException) as e:
+    except (AttributeError, LinkplayCliGetRequestFailedException, LinkplayCliFirmwareUpdateNotFoundException) as e:
         if verbose:
             print(f'Failed retrieving version file from server: {e}, {update_server_url}')
         return
@@ -53,7 +52,7 @@ def print_latest_version_and_release_date(update_server_url, model, hardware, ve
     try:
         version = version_file_lines[VERSION_FILE_VERSION_LINE].split('.', maxsplit=1)[1]
         release_date = version_file_lines[VERSION_FILE_RELEASE_DATE_LINE]
-    except (AttributeError, IndexError, requests.exceptions.RequestException) as e:
+    except (AttributeError, IndexError, LinkplayCliGetRequestFailedException) as e:
         if verbose:
             print(f'Failed parsing version file: {e}, {version_file_lines}')
         return

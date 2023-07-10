@@ -10,7 +10,10 @@ class LinkplayCliGetRequestFailedException(Exception):
 
 
 def perform_get_request(url, verbose, params=None, expect_json=False, expect_bytes=False):
-    response = requests.get(url, params=params, timeout=config.get_request_timeout_seconds)
+    try:
+        response = requests.get(url, params=params, timeout=config.get_request_timeout_seconds)
+    except requests.exceptions.RequestException as e:
+        raise LinkplayCliGetRequestFailedException(str(e))
 
     verbose_message = f'GET {response.request.url} returned {response.status_code}: {response.text}'
 

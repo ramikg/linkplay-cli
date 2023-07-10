@@ -2,7 +2,6 @@ import asyncio
 import ipaddress
 
 from async_upnp_client.search import async_search
-import requests
 
 from linkplay_cli import config
 from linkplay_cli.utils import perform_get_request, LinkplayCliGetRequestFailedException
@@ -22,7 +21,7 @@ def _is_linkplay_ip_address(ip_address):
     try:
         perform_get_request(f'http://{ip_address}/httpapi.asp?command=setPlayerCmd', verbose=False)
         return True
-    except (requests.exceptions.RequestException, LinkplayCliGetRequestFailedException):
+    except LinkplayCliGetRequestFailedException:
         return False
 
 
@@ -36,7 +35,7 @@ def discover_linkplay_address(verbose):
                 return cached_ip_address
     except ipaddress.AddressValueError:
         print('Cached IP address is corrupted. Rediscovering.')
-    except requests.exceptions.RequestException:
+    except LinkplayCliGetRequestFailedException:
         print('Connection failed. Rediscovering.')
 
     print('Starting device discovery...')
