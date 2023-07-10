@@ -17,7 +17,8 @@ setup(name='linkplay-cli',
           'beautifulsoup4',
           'lxml',
           'pycryptodome',
-          'requests'
+          'requests',
+          'urllib3'
       ],
       entry_points={
           'console_scripts': [

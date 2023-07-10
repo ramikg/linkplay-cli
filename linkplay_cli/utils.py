@@ -1,8 +1,26 @@
 from http import HTTPStatus
-
-import requests
+import warnings
 
 from linkplay_cli import config
+
+
+def _supress_openssl_warning_when_importing_requests():
+    """
+    Invoking the CLI on a system without OpenSSL (e.g. one with LibreSSL) may result in a warning we'd like to supress.
+    This warning is raised when importing urllib3 >= 2.0.3 (which the requests library may do).
+    """
+    with warnings.catch_warnings(record=True) as caught_warnings:
+        from urllib3.exceptions import NotOpenSSLWarning
+
+    for w in caught_warnings:
+        if w.category is NotOpenSSLWarning:
+            continue
+        else:
+            warnings.warn(message=w.message, category=w.category, source=w.source)
+
+
+_supress_openssl_warning_when_importing_requests()
+import requests
 
 
 class LinkplayCliGetRequestFailedException(Exception):
