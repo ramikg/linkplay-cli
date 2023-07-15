@@ -197,19 +197,19 @@ class LinkplayCli:
     def info(self, _):
         status = self._run_command('getStatus', expect_json=True)
 
-        model = status["project"]
-        hardware = status["hardware"]
+        model = status['project']
+        hardware = status['hardware']
 
         print(f'Device name: {status["DeviceName"]}')
         print(f'Model: {model}')
         print(f'Device time: {self._status_to_time_string(status)}')
-        self._print_info_if_not_empty('Wi-Fi IP address', status["apcli0"])
-        self._print_info_if_not_empty('Wi-Fi SSID', self._decode_string(status["essid"]))
-        self._print_info_if_not_empty('Ethernet IP address', status["eth2"])
+        self._print_info_if_not_empty('Wi-Fi IP address', status['apcli0'])
+        self._print_info_if_not_empty('Wi-Fi SSID', self._decode_string(status['essid']))
+        self._print_info_if_not_empty('Ethernet IP address', status['eth2'])
         print(f'UUID: {status["uuid"]}')
         print(f'Hardware: {hardware}')
-        self._print_info_if_not_empty('MCU version', status["mcu_ver"])
-        self._print_info_if_not_empty('DSP version', status["dsp_ver"])
+        self._print_info_if_not_empty('MCU version', status['mcu_ver'])
+        self._print_info_if_not_empty('DSP version', status['dsp_ver'])
         print(f'Firmware version: {status["firmware"]} (released {status["Release"]})')
 
         self._print_latest_version_and_release_date(model, hardware)
