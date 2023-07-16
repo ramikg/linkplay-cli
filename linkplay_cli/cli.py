@@ -117,9 +117,13 @@ class LinkplayCli:
         self._run_command_expecting_ok_output('setPlayerCmd:pause')
         print('Playback paused')
 
-    def play(self, _):
-        self._run_command_expecting_ok_output('setPlayerCmd:resume')
-        print('Playback resumed')
+    def play(self, args):
+        if args.url:
+            self._run_command_expecting_ok_output(f'setPlayerCmd:play:{args.url}')
+            print(f'Playing from {args.url}')
+        else:
+            self._run_command_expecting_ok_output('setPlayerCmd:resume')
+            print('Playback resumed')
 
     def next(self, _):
         self._run_command_expecting_ok_output('setPlayerCmd:next')
@@ -270,8 +274,9 @@ def _parse_args():
     subparser = subparsers.add_parser('pause', parents=[common_parser], help='Pause current track')
     subparser.set_defaults(func=LinkplayCli.pause)
 
-    subparser = subparsers.add_parser('play', parents=[common_parser], help='Resume current track')
+    subparser = subparsers.add_parser('play', parents=[common_parser], help='Resume current track or play from URL')
     subparser.set_defaults(func=LinkplayCli.play)
+    subparser.add_argument('--url', help='URL to play from')
 
     subparser = subparsers.add_parser('next', parents=[common_parser], help='Play next track')
     subparser.set_defaults(func=LinkplayCli.next)
