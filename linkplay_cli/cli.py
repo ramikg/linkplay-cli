@@ -71,8 +71,11 @@ class LinkplayCli:
         return self._convert_seconds_to_duration_string(seconds)
 
     @staticmethod
-    def _decode_string(string):
-        return bytes.fromhex(string).decode('utf-8')
+    def _decode_string(s):
+        try:
+            return bytes.fromhex(s).decode('utf-8')
+        except ValueError:
+            return s
 
     def now(self, args):
         UNICODE_LTR_MARK = u'\u200E'
