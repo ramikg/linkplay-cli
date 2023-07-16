@@ -93,7 +93,7 @@ class LinkplayCli:
 
         print(output_string)
 
-    def _run_player_command_expecting_ok_output(self, command):
+    def _run_command_expecting_ok_output(self, command):
         OK_MESSAGE = 'OK'
 
         output = self._run_command(command)
@@ -104,19 +104,19 @@ class LinkplayCli:
         return self._run_command('getPlayerStatus', expect_json=True)
 
     def pause(self, _):
-        self._run_player_command_expecting_ok_output('setPlayerCmd:pause')
+        self._run_command_expecting_ok_output('setPlayerCmd:pause')
         print('Playback paused')
 
     def play(self, _):
-        self._run_player_command_expecting_ok_output('setPlayerCmd:resume')
+        self._run_command_expecting_ok_output('setPlayerCmd:resume')
         print('Playback resumed')
 
     def next(self, _):
-        self._run_player_command_expecting_ok_output('setPlayerCmd:next')
+        self._run_command_expecting_ok_output('setPlayerCmd:next')
         print('Switched to next track')
 
     def previous(self, _):
-        self._run_player_command_expecting_ok_output('setPlayerCmd:prev')
+        self._run_command_expecting_ok_output('setPlayerCmd:prev')
         print('Switched to previous track')
 
     def seek(self, seek_args):
@@ -130,20 +130,18 @@ class LinkplayCli:
         seconds_to_seek = 0
         multiplier = 1
         for time_part in reversed(time_parts):
-            if int(time_part) < 0:
-                raise LinkplayCliInvalidArgumentException(f'')
             seconds_to_seek += int(time_part) * multiplier
             multiplier *= 60
 
-        self._run_player_command_expecting_ok_output(f'setPlayerCmd:seek:{seconds_to_seek}')
+        self._run_command_expecting_ok_output(f'setPlayerCmd:seek:{seconds_to_seek}')
         print(f'Position changed to {self._convert_seconds_to_duration_string(seconds_to_seek)}')
 
     def mute(self, _):
-        self._run_player_command_expecting_ok_output('setPlayerCmd:mute:1')
+        self._run_command_expecting_ok_output('setPlayerCmd:mute:1')
         print('Muted')
 
     def unmute(self, _):
-        self._run_player_command_expecting_ok_output('setPlayerCmd:mute:0')
+        self._run_command_expecting_ok_output('setPlayerCmd:mute:0')
         print('Unmuted')
 
     def volume(self, volume_args):
@@ -166,7 +164,7 @@ class LinkplayCli:
             # Negative input is interpreted as "decrease volume"
             new_volume = min(100, int(volume_arg))
 
-        self._run_player_command_expecting_ok_output(f'setPlayerCmd:vol:{new_volume}')
+        self._run_command_expecting_ok_output(f'setPlayerCmd:vol:{new_volume}')
         print(f'Volume: {orig_volume} -> {new_volume}{muted_string}')
 
     def raw(self, raw_args):
@@ -245,8 +243,8 @@ def _parse_args():
     common_parser.add_argument('--verbose', '-v', action='store_true', help='Verbose mode')
 
     subparsers = main_parser.add_subparsers(
-        description='Note that some commands do not work in some scenarios (e.g. when playing from YouTube)',
-        help='Command')
+        description='Note that some commands do not work in some scenarios (e.g. when playing from YouTube)'
+    )
 
     subparser = subparsers.add_parser('now', parents=[common_parser], help='Show what\'s playing now')
     subparser.set_defaults(func=LinkplayCli.now)
