@@ -10,6 +10,7 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 from Crypto.Cipher import ARC4
+from prettytable import PrettyTable
 
 from linkplay_cli import config
 from linkplay_cli.discovery import discover_linkplay_address
@@ -206,7 +207,11 @@ class LinkplayCli:
     def _status_to_time_string(self, status):
         return f'{status["date"]} {status["time"]}{self._parse_timezone(status["tz"])}'
 
-    def info(self, _):
+    def info(self, args):
+        if args.wi_fi:
+            self._print_access_points()
+            return
+
         status = self._run_command('getStatus', expect_json=True)
 
         model = status['project']
@@ -310,6 +315,7 @@ def _parse_args():
 
     subparser = subparsers.add_parser('info', parents=[common_parser], help='Get basic device information')
     subparser.set_defaults(func=LinkplayCli.info)
+    subparser.add_argument('--wi-fi', action='store_true', help='List available Wi-Fi access points')
 
     subparser = subparsers.add_parser('date', parents=[common_parser], help='Print and set device date and time')
     subparser.set_defaults(func=LinkplayCli.date)
