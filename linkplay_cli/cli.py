@@ -1,4 +1,5 @@
 import argparse
+from datetime import datetime
 import ipaddress
 import math
 import re
@@ -33,6 +34,15 @@ class LinkplayCli:
     def verify_volume_argument(arg):
         match_result = re.match(r'^[-+]?(\d+)$', arg)
         if match_result is None:
+            raise LinkplayCliInvalidArgumentException(f'Invalid argument "{arg}". See the command\'s help.')
+
+        return arg
+
+    @staticmethod
+    def verify_date_argument(arg):
+        try:
+            datetime.strptime(arg, '%Y%m%d%H%M%S')
+        except ValueError:
             raise LinkplayCliInvalidArgumentException(f'Invalid argument "{arg}". See the command\'s help.')
 
         return arg
@@ -212,10 +222,17 @@ class LinkplayCli:
 
         self._print_latest_version_and_release_date(model, hardware)
 
-    def date(self, _):
+    def date(self, args):
         status = self._run_command('getStatus', expect_json=True)
+        original_time_string = self._status_to_time_string(status)
 
-        print(self._status_to_time_string(status))
+        new_time_string = ''
+        if args.set:
+            self._run_command_expecting_ok_output(f'timeSync:{args.set}')
+            status = self._run_command('getStatus', expect_json=True)
+            new_time_string = f' -> {self._status_to_time_string(status)}'
+
+        print(original_time_string + new_time_string)
 
     def getsyslog(self, args):
         download_page = self._run_command('getsyslog')  # The download URL is always the same, but needs to be refreshed
@@ -289,8 +306,10 @@ def _parse_args():
     subparser = subparsers.add_parser('info', parents=[common_parser], help='Get basic device information')
     subparser.set_defaults(func=LinkplayCli.info)
 
-    subparser = subparsers.add_parser('date', parents=[common_parser], help='Print device date and time')
+    subparser = subparsers.add_parser('date', parents=[common_parser], help='Print and set device date and time')
     subparser.set_defaults(func=LinkplayCli.date)
+    subparser.add_argument('--set', metavar='DATE', type=LinkplayCli.verify_date_argument,
+                           help='Set the date and time. The expected format is YYYYMMDDHHMMSS.')
 
     subparser = subparsers.add_parser('getsyslog', parents=[common_parser], help='Download device log file')
     subparser.set_defaults(func=LinkplayCli.getsyslog)
