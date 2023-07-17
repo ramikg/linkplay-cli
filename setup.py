@@ -10,7 +10,7 @@ setup(name='linkplay-cli',
       long_description=long_description,
       long_description_content_type='text/markdown',
       url='https://github.com/ramikg/linkplay-cli',
-      version='0.0.3',
+      version='0.0.4',
       packages=find_packages(),
       install_requires=[
           'async_upnp_client',
