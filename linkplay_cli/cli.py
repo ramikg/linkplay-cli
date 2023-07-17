@@ -1,5 +1,6 @@
 import argparse
-from datetime import datetime
+import calendar
+from enum import Enum
 import ipaddress
 import math
 import re
@@ -26,7 +27,23 @@ class LinkplayCliInvalidArgumentException(Exception):
     pass
 
 
+class AlarmOperation(Enum):
+    command = 0
+    play = 1
+    stop = 2
+
+
+class AlarmTrigger(Enum):
+    once = 1
+    daily = 2
+    weekly = 3
+    monthly = 5
+
+
 class LinkplayCli:
+    # Rotate calendar.day_name so that it will start with Sunday
+    DAY_NAMES = list(calendar.day_name)[-1:] + list(calendar.day_name)[:-1]
+
     def __init__(self, verbose, address=None) -> None:
         self._verbose = verbose
         self._ip_address = address or discover_linkplay_address(verbose)
@@ -40,11 +57,11 @@ class LinkplayCli:
         return arg
 
     @staticmethod
-    def verify_date_argument(arg):
+    def verify_date_argument(arg, fmt):
         try:
-            datetime.strptime(arg, '%Y%m%d%H%M%S')
+            time.strptime(arg, fmt)
         except ValueError:
-            raise LinkplayCliInvalidArgumentException(f'Invalid argument "{arg}". See the command\'s help.')
+            raise LinkplayCliInvalidArgumentException(f'Invalid argument "{arg}" for format "{fmt}".')
 
         return arg
 
@@ -250,6 +267,87 @@ class LinkplayCli:
 
         self._print_latest_version_and_release_date(model, hardware)
 
+    def alarm_list(self, _):
+        table = PrettyTable()
+        table.field_names = ['Index', 'Operation', 'Trigger', 'Date', 'Time', 'Day', 'Path']
+        for alarm_index in range(config.maximum_number_of_alarms):
+            alarm = self._run_command(f'getAlarmClock:{alarm_index}', expect_json=True)
+
+            day = alarm.get('day', '')
+            if 'week_day' in alarm:
+                day = LinkplayCli.DAY_NAMES[int(alarm['week_day'])]
+
+            if alarm['enable'] == '1':
+                table.add_row([alarm_index,
+                               alarm['operation'],
+                               alarm['trigger'],
+                               alarm.get('date', ''),
+                               alarm['time'],
+                               day,
+                               alarm['path']])
+
+        if table.rows:
+            print(table)
+        else:
+            print('No alarms')
+
+    def alarm_stop(self, _):
+        self._run_command_expecting_ok_output('alarmStop')
+        print('Alarm stopped')
+
+    def alarm_delete(self, args):
+        self._run_command_expecting_ok_output(f'alarmDel:{args.index}')
+        print(f'Alarm {args.index} deleted')
+
+    def _verify_alarm_set_arguments(self, args):
+        self.verify_date_argument(args.time, '%H%M%S')
+
+        if args.once:
+            self.verify_date_argument(args.year, '%Y')
+            if not 2015 <= int(args.year) <= 2020:
+                print('Note: Some devices prohibit one-time alarms not between 2015 and 2020 (inclusive).')
+            self.verify_date_argument(args.month, '%m')
+            self.verify_date_argument(args.day, '%d')
+        elif args.weekly:
+            self.verify_date_argument(args.day, '%A')
+        elif args.monthly:
+            self.verify_date_argument(args.day, '%d')
+
+    def alarm_set(self, args):
+        self._verify_alarm_set_arguments(args)
+
+        optional_params = ''
+
+        if args.once:
+            optional_params += f':{args.year}{int(args.month):02}{int(args.day):02}'
+        elif args.weekly:
+            optional_params += f':0{LinkplayCli.DAY_NAMES.index(args.day.title())}'
+        elif args.monthly:
+            optional_params += f':{int(args.day):02}'
+
+        if args.command:
+            optional_params += f':{args.command}'
+            operation = AlarmOperation['command'].value
+        elif args.play:
+            optional_params += f':{args.play}'
+            operation = AlarmOperation['play'].value
+        elif args.stop:
+            operation = AlarmOperation['stop'].value
+
+        if args.once:
+            trigger = AlarmTrigger['once'].value
+        elif args.daily:
+            trigger = AlarmTrigger['daily'].value
+        elif args.weekly:
+            trigger = AlarmTrigger['weekly'].value
+        elif args.monthly:
+            trigger = AlarmTrigger['monthly'].value
+
+        self._run_command_expecting_ok_output(
+            f'setAlarmClock:{args.index}:{trigger}:{operation}:{args.time}{optional_params}')
+
+        print('Alarm set.')
+
     def date(self, args):
         status = self._run_command('getStatus', expect_json=True)
         original_time_string = self._status_to_time_string(status)
@@ -278,6 +376,57 @@ class LinkplayCli:
                 output_file.write(cipher.decrypt(chunk))
 
         print(f'Log file downloaded to {output_file_path}')
+
+
+def _add_alarm_arg_subparsers(top_subparsers, common_parser):
+    parent_subparser = top_subparsers.add_parser('alarm', parents=[common_parser], help='Control alarm clocks')
+    parent_subparser.set_defaults(func=lambda *args: parent_subparser.print_help())
+    alarm_subparsers = parent_subparser.add_subparsers(title='Alarm subcommands')
+
+    subparser = alarm_subparsers.add_parser('list', parents=[common_parser], help='List existing alarms')
+    subparser.set_defaults(func=LinkplayCli.alarm_list)
+
+    subparser = alarm_subparsers.add_parser('set', parents=[common_parser],
+                                            help='Set alarm (optionally overwriting an existing one)')
+    subparser.set_defaults(func=LinkplayCli.alarm_set)
+    subparser.add_argument('--index', required=True, type=int,
+                           choices=range(config.maximum_number_of_alarms),
+                           help='The alarm index')
+
+    triggers = subparser.add_mutually_exclusive_group(required=True)
+    triggers.add_argument('--once', action='store_true',
+                          help='Set up a one-time alarm')
+    triggers.add_argument('--daily', action='store_true',
+                          help='Set up a daily alarm')
+    triggers.add_argument('--weekly', action='store_true',
+                          help='Set up a weekly alarm')
+    triggers.add_argument('--monthly', action='store_true',
+                          help='Set up a monthly alarm')
+
+    operations = subparser.add_mutually_exclusive_group(required=True)
+    operations.add_argument('--command',
+                            help='Execute a command when the alarm is triggered')
+    operations.add_argument('--play', metavar='URL',
+                            help='Play a URL when the alarm is triggered')
+    operations.add_argument('--stop', action='store_true',
+                            help='Stop what\'s playing when the alarm is triggered')
+
+    subparser.add_argument('--time', metavar='HHMMSS', required=True,
+                           help='Alarm time')
+    subparser.add_argument('--year', metavar='YYYY',
+                           help='Alarm year (where relevant)')
+    subparser.add_argument('--month', metavar='MM',
+                           help='Alarm month (where relevant)')
+    subparser.add_argument('--day',
+                           help='Alarm day. Format: '
+                           'Day name (for weekly alarms. E.g. "monday") or number (for other alarms. E.g. "13")')
+
+    subparser = alarm_subparsers.add_parser('stop', parents=[common_parser], help='Stop the alarm')
+    subparser.set_defaults(func=LinkplayCli.alarm_stop)
+
+    subparser = alarm_subparsers.add_parser('delete', parents=[common_parser], help='Delete alarm')
+    subparser.set_defaults(func=LinkplayCli.alarm_delete)
+    subparser.add_argument('--index', help='The index of the alarm to delete')
 
 
 def _parse_args():
@@ -311,16 +460,16 @@ def _parse_args():
     subparser = subparsers.add_parser('seek', parents=[common_parser], help='Seek to a specific track position')
     subparser.set_defaults(func=LinkplayCli.seek)
     subparser.add_argument('new_position',
-                            help='Acceptable formats: '
-                                 '"<hours>:<minutes>:<seconds>" or "<minutes>:<seconds>" or "<seconds>".\n'
-                                 'E.g.: "4:21" or (equivalently) "261"')
+                           help='Acceptable formats: '
+                                '"<hours>:<minutes>:<seconds>" or "<minutes>:<seconds>" or "<seconds>".\n'
+                                'E.g.: "4:21" or (equivalently) "261"')
 
     subparser = subparsers.add_parser('volume', parents=[common_parser], help='Set/get current volume')
     subparser.set_defaults(func=LinkplayCli.volume)
     subparser.add_argument('new_volume', type=LinkplayCli.verify_volume_argument, nargs='?',
-                            help='+<num>/-<num> to increase/decrease volume by num; '
-                                 '<num> to set volume to num; '
-                                 'omit to show volume')
+                           help='+<num>/-<num> to increase/decrease volume by num; '
+                                '<num> to set volume to num; '
+                                'omit to show volume')
 
     subparser = subparsers.add_parser('mute', parents=[common_parser], help='Mute')
     subparser.set_defaults(func=LinkplayCli.mute)
@@ -338,12 +487,15 @@ def _parse_args():
 
     subparser = subparsers.add_parser('date', parents=[common_parser], help='Print and set device date and time')
     subparser.set_defaults(func=LinkplayCli.date)
-    subparser.add_argument('--set', metavar='DATE', type=LinkplayCli.verify_date_argument,
-                           help='Set the date and time. The expected format is YYYYMMDDHHMMSS.')
+    subparser.add_argument('--set', metavar='YYYYMMDDHHMMSS',
+                           type=lambda d: LinkplayCli.verify_date_argument(d, '%Y%m%d%H%M%S'),
+                           help='Set the date and time')
 
     subparser = subparsers.add_parser('getsyslog', parents=[common_parser], help='Download device log file')
     subparser.set_defaults(func=LinkplayCli.getsyslog)
     subparser.add_argument('--output-dir', help='Output directory. Defaults to gettempdir()')
+
+    _add_alarm_arg_subparsers(subparsers, common_parser)
 
     if len(sys.argv) < 2:
         main_parser.print_help()
