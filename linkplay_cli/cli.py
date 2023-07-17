@@ -210,6 +210,22 @@ class LinkplayCli:
     def _status_to_time_string(self, status):
         return f'{status["date"]} {status["time"]}{self._parse_timezone(status["tz"])}'
 
+    def _print_access_points(self):
+        status = self._run_command('getStatus', expect_json=True)
+        connected_ssid = self._decode_string(status['essid'])
+
+        ap_list = self._run_command('wlanGetApListEx', expect_json=True)['aplist']
+
+        table = PrettyTable()
+        table.field_names = ['SSID', 'BSSID', 'RSSI', 'channel', 'Authentication', 'Encryption', 'Address if connected']
+        for ap in ap_list:
+            ssid = self._decode_string(ap['ssid'])
+            bssid = ap['bssid'].upper()
+            ip_address = status['apcli0'] if connected_ssid == ssid else ''
+            table.add_row([ssid, bssid, ap['rssi'], ap['channel'], ap['auth'], ap['encry'], ip_address])
+
+        print(table)
+
     def info(self, args):
         if args.wi_fi:
             self._print_access_points()
