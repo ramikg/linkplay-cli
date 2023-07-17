@@ -1,4 +1,5 @@
 from http import HTTPStatus
+import urllib.parse
 import warnings
 
 from linkplay_cli import config
@@ -33,7 +34,7 @@ def perform_get_request(url, verbose, params=None, expect_json=False, expect_byt
     except requests.exceptions.RequestException as e:
         raise LinkplayCliGetRequestFailedException(str(e))
 
-    verbose_message = f'GET {response.request.url} returned {response.status_code}: {response.text}'
+    verbose_message = f'GET {urllib.parse.unquote(response.request.url)} returned {response.status_code}: {response.text}'
 
     if response.status_code != HTTPStatus.OK:
         raise LinkplayCliGetRequestFailedException(verbose_message)
