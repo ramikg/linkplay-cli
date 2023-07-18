@@ -11,7 +11,10 @@ def _supress_openssl_warning_when_importing_requests():
     This warning is raised when importing urllib3 >= 2.0.3 (which the requests library may do).
     """
     with warnings.catch_warnings(record=True) as caught_warnings:
-        from urllib3.exceptions import NotOpenSSLWarning
+        try:
+            from urllib3.exceptions import NotOpenSSLWarning
+        except ImportError:
+            return
 
     for w in caught_warnings:
         if w.category is NotOpenSSLWarning:
