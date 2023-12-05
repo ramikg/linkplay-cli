@@ -1,6 +1,7 @@
 import argparse
 import calendar
 from enum import Enum
+import html
 import ipaddress
 import math
 import re
@@ -88,9 +89,10 @@ class LinkplayCli:
         return self._convert_seconds_to_duration_string(seconds)
 
     @staticmethod
-    def _decode_string(s):
+    def _decode_string(s, unescape_html=False):
         try:
-            return bytes.fromhex(s).decode('utf-8')
+            result = bytes.fromhex(s).decode('utf-8')
+            return html.unescape(result) if unescape_html else result
         except ValueError:
             return s
 
@@ -101,8 +103,8 @@ class LinkplayCli:
         player_status = self._get_player_status()
 
         status = player_status['status']
-        artist = self._decode_string(player_status['Artist']) or UNKNOWN_NAME_STRING
-        title = self._decode_string(player_status['Title']) or UNKNOWN_NAME_STRING
+        artist = self._decode_string(player_status['Artist'], unescape_html=True) or UNKNOWN_NAME_STRING
+        title = self._decode_string(player_status['Title'], unescape_html=True) or UNKNOWN_NAME_STRING
 
         if status == 'play':
             status_string = '▶️'
