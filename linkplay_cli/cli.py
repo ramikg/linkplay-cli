@@ -41,6 +41,15 @@ class AlarmTrigger(Enum):
     monthly = 5
 
 
+PLAYBACK_MODE_NUMBER_TO_NAME = {
+    1: "Apple Music",
+    10: "URL",
+    31: "Spotify",
+    40: "AUX",
+    41: "Bluetooth",
+}
+
+
 class LinkplayCli:
     # Rotate calendar.day_name so that it will start with Sunday
     DAY_NAMES = list(calendar.day_name)[-1:] + list(calendar.day_name)[:-1]
@@ -123,6 +132,14 @@ class LinkplayCli:
             total_length_in_ms = self._convert_ms_to_duration_string(player_status['totlen'])
 
             output_string += f' {UNICODE_LTR_MARK}[{current_position_in_ms}/{total_length_in_ms}]'
+
+        if args.extra:
+            album = self._decode_string(player_status['Album'], unescape_html=True)
+            if album:
+                output_string += f'\nAlbum: {album}'
+            playback_mode = int(player_status['mode'])
+            if playback_mode in PLAYBACK_MODE_NUMBER_TO_NAME:
+                output_string += f'\nPlayback mode: {PLAYBACK_MODE_NUMBER_TO_NAME[playback_mode]}'
 
         print(output_string)
 
@@ -445,6 +462,7 @@ def _parse_args():
     subparser = subparsers.add_parser('now', parents=[common_parser], help='Show what\'s playing now')
     subparser.set_defaults(func=LinkplayCli.now)
     subparser.add_argument('--no-time', action='store_true', help='Don\'t display the current position and length')
+    subparser.add_argument('--extra', action='store_true', help='Display additional information')
 
     subparser = subparsers.add_parser('pause', parents=[common_parser], help='Pause current track')
     subparser.set_defaults(func=LinkplayCli.pause)
