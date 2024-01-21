@@ -44,6 +44,7 @@ def perform_get_request(url, verbose, params=None, expect_json=False, expect_byt
     if verbose:
         print(verbose_message)
 
+    response.encoding = 'utf-8'
     if expect_json:
         return response.json()
     elif expect_bytes:

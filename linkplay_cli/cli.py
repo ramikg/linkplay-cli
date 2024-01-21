@@ -105,6 +105,10 @@ class LinkplayCli:
         except ValueError:
             return s
 
+    @staticmethod
+    def _encode_string(s):
+        return bytes(s, 'utf-8').hex()
+
     def now(self, args):
         UNICODE_LTR_MARK = u'\u200E'
         UNKNOWN_NAME_STRING = 'Unknown'
@@ -269,10 +273,15 @@ class LinkplayCli:
 
         status = self._run_command('getStatus', expect_json=True)
 
+        new_device_string = ''
+        if args.set_device_name:
+            self._run_command_expecting_ok_output(f'setHexDeviceName:{self._encode_string(args.set_device_name)}')
+            new_device_string = f' -> {args.set_device_name}'
+
         model = status['project']
         hardware = status['hardware']
 
-        print(f'Device name: {status["DeviceName"]}')
+        print(f'Device name: {status["DeviceName"]}{new_device_string}')
         print(f'Model: {model}')
         print(f'Device time: {self._status_to_time_string(status)}')
         self._print_info_if_not_empty('Wi-Fi IP address', status['apcli0'])
@@ -504,6 +513,7 @@ def _parse_args():
     subparser = subparsers.add_parser('info', parents=[common_parser], help='Get basic device information')
     subparser.set_defaults(func=LinkplayCli.info)
     subparser.add_argument('--wi-fi', action='store_true', help='List available Wi-Fi access points')
+    subparser.add_argument('--set-device-name', help='Set device name')
 
     subparser = subparsers.add_parser('date', parents=[common_parser], help='Print and set device date and time')
     subparser.set_defaults(func=LinkplayCli.date)
