@@ -1,9 +1,11 @@
 import asyncio
-import ipaddress
+from ipaddress import IPv4Address
+from typing import List
 
 from async_upnp_client.search import async_search
 
 from linkplay_cli import config
+from linkplay_cli.device import Device, RequestProtocol
 from linkplay_cli.utils import perform_get_request, LinkplayCliGetRequestFailedException
 
 
@@ -14,39 +16,52 @@ class LinkplayCliDeviceNotFoundException(Exception):
 UPNP_DEVICE_TYPE = 'urn:schemas-upnp-org:device:MediaRenderer:1'
 
 
-def _is_linkplay_ip_address(ip_address):
-    if ip_address is None:
-        return False
+def _get_linkplay_device_status(ip_address: IPv4Address, port: int, protocol: RequestProtocol):
+    return perform_get_request(
+        f'{protocol}://{ip_address}:{port}/httpapi.asp?command=getStatusEx',
+        expect_json=True,
+        verbose=False)
 
+
+def _get_valid_linkplay_device_configuration_from_ip_address(ip_address: IPv4Address) -> Device | None:
+    for http_port in config.http_ports:
+        try:
+            status = _get_linkplay_device_status(ip_address, http_port, 'http')
+            return Device(ip_address=ip_address, port=http_port, protocol='http',
+                          model=status['project'], name=status['DeviceName'])
+        except LinkplayCliGetRequestFailedException:
+            pass
+
+    for tls_port in config.tls_ports:
+        try:
+            status = _get_linkplay_device_status(ip_address, tls_port, 'https')
+            return Device(ip_address=ip_address, port=tls_port, protocol='https',
+                          model=status['project'], name=status['DeviceName'])
+        except LinkplayCliGetRequestFailedException:
+            pass
+
+    return None
+
+
+def is_valid_linkplay_device(device: Device) -> bool:
     try:
-        perform_get_request(f'http://{ip_address}/httpapi.asp?command=setPlayerCmd', verbose=False)
+        _get_linkplay_device_status(device.ip_address, device.port, device.protocol)
         return True
     except LinkplayCliGetRequestFailedException:
         return False
 
 
-def discover_linkplay_address(verbose):
-    try:
-        if config.cache_file_path.exists():
-            cached_ip_address = ipaddress.IPv4Address(config.cache_file_path.read_text())
-            if _is_linkplay_ip_address(cached_ip_address):
-                if verbose:
-                    print(f'Using cached IP address {cached_ip_address}')
-                return cached_ip_address
-    except ipaddress.AddressValueError:
-        print('Cached IP address is corrupted. Rediscovering.')
-    except LinkplayCliGetRequestFailedException:
-        print('Connection failed. Rediscovering.')
-
+def discover_linkplay_devices() -> List[Device]:
     print('Starting device discovery...')
-    linkplay_ip_addresses = []
+    linkplay_devices: List[Device] = []
 
     async def add_linkplay_device_to_list(upnp_device):
         device_ip_address = upnp_device.get('_host')
-        if not _is_linkplay_ip_address(device_ip_address):
+        potential_linkplay_device = _get_valid_linkplay_device_configuration_from_ip_address(device_ip_address)
+        if not potential_linkplay_device:
             return
 
-        linkplay_ip_addresses.append(device_ip_address)
+        linkplay_devices.append(potential_linkplay_device)
 
     # Run synchronously, as our code is not async
     asyncio.new_event_loop().run_until_complete(async_search(
@@ -55,14 +70,7 @@ def discover_linkplay_address(verbose):
         async_callback=add_linkplay_device_to_list
     ))
 
-    if len(linkplay_ip_addresses) != 1:
-        if verbose and linkplay_ip_addresses:
-            print(f'Linkplay devices found: {linkplay_ip_addresses}')
-        raise LinkplayCliDeviceNotFoundException(f'Found {len(linkplay_ip_addresses)} devices. '
-                                                 'Please specify IP address manually.')
+    if not linkplay_devices:
+        raise LinkplayCliDeviceNotFoundException('Linkplay devices not found.')
 
-    ip_address = linkplay_ip_addresses[0]
-    config.cache_file_path.write_text(ip_address)
-    print(f'Discovered device at IP address {ip_address}. Caching for future use.')
-
-    return ipaddress.IPv4Address(ip_address)
+    return linkplay_devices

@@ -2,12 +2,14 @@ import argparse
 import calendar
 from enum import Enum
 import html
-import ipaddress
 import math
 import re
 import sys
 import tempfile
 import time
+
+from linkplay_cli.configure import prompt_user_to_choose_active_device, \
+    load_configuration_from_file
 from pathlib import Path
 
 from bs4 import BeautifulSoup
@@ -15,9 +17,9 @@ from Crypto.Cipher import ARC4
 from prettytable import PrettyTable
 
 from linkplay_cli import config
-from linkplay_cli.discovery import discover_linkplay_address
+from linkplay_cli.discovery import discover_linkplay_devices, is_valid_linkplay_device
 from linkplay_cli.firmware_update import print_latest_version_and_release_date
-from linkplay_cli.utils import perform_get_request
+from linkplay_cli.utils import perform_get_request, LinkplayCliGetRequestUnknownCommandException
 
 
 class LinkplayCliCommandFailedException(Exception):
@@ -54,9 +56,14 @@ class LinkplayCli:
     # Rotate calendar.day_name so that it will start with Sunday
     DAY_NAMES = list(calendar.day_name)[-1:] + list(calendar.day_name)[:-1]
 
-    def __init__(self, verbose, address=None) -> None:
+    def __init__(self, verbose) -> None:
         self._verbose = verbose
-        self._ip_address = address or discover_linkplay_address(verbose)
+        configuration = load_configuration_from_file()
+        if configuration.active_device and is_valid_linkplay_device(configuration.active_device):
+            self._device = configuration.active_device
+        else:
+            linkplay_devices = discover_linkplay_devices()
+            self._device = prompt_user_to_choose_active_device(linkplay_devices)
 
     @staticmethod
     def verify_volume_argument(arg):
@@ -76,7 +83,7 @@ class LinkplayCli:
         return arg
 
     def _run_command(self, command, expect_json=False):
-        return perform_get_request(f'http://{self._ip_address}/httpapi.asp',
+        return perform_get_request(f'{self._device.protocol}://{self._device.ip_address}:{self._device.port}/httpapi.asp',
                                    verbose=self._verbose,
                                    params={'command': command},
                                    expect_json=expect_json)
@@ -155,7 +162,7 @@ class LinkplayCli:
             raise LinkplayCliCommandFailedException(f'Command {command} failed with output {output}.')
 
     def _get_player_status(self):
-        return self._run_command('getPlayerStatus', expect_json=True)
+        return self._run_command('getPlayerStatusEx', expect_json=True)
 
     def pause(self, _):
         self._run_command_expecting_ok_output('setPlayerCmd:pause')
@@ -248,10 +255,11 @@ class LinkplayCli:
         return f'{sign_string}{integer_string}{fractional_string}'
 
     def _status_to_time_string(self, status):
-        return f'{status["date"]} {status["time"]}{self._parse_timezone(status["tz"])}'
+        timezone_string = self._parse_timezone(status['tz']) if 'tz' in status else ''
+        return f'{status["date"]} {status["time"]}{timezone_string}'
 
     def _print_access_points(self):
-        status = self._run_command('getStatus', expect_json=True)
+        status = self._run_command('getStatusEx', expect_json=True)
         connected_ssid = self._decode_string(status['essid'])
 
         ap_list = self._run_command('wlanGetApListEx', expect_json=True)['aplist']
@@ -271,7 +279,7 @@ class LinkplayCli:
             self._print_access_points()
             return
 
-        status = self._run_command('getStatus', expect_json=True)
+        status = self._run_command('getStatusEx', expect_json=True)
 
         new_device_string = ''
         if args.set_device_name:
@@ -281,7 +289,7 @@ class LinkplayCli:
         model = status['project']
         hardware = status['hardware']
 
-        print(f'Device name: {status["DeviceName"]}{new_device_string}')
+        print(f'Device name: {status['DeviceName']}{new_device_string}')
         print(f'Model: {model}')
         print(f'Device time: {self._status_to_time_string(status)}')
         self._print_info_if_not_empty('Wi-Fi IP address', status['apcli0'])
@@ -293,7 +301,10 @@ class LinkplayCli:
         self._print_info_if_not_empty('DSP version', status['dsp_ver'])
         print(f'Firmware version: {status["firmware"]} (released {status["Release"]})')
 
-        self._print_latest_version_and_release_date(model, hardware)
+        try:
+            self._print_latest_version_and_release_date(model, hardware)
+        except LinkplayCliGetRequestUnknownCommandException:
+            pass
 
     def alarm_list(self, _):
         table = PrettyTable()
@@ -377,13 +388,13 @@ class LinkplayCli:
         print('Alarm set.')
 
     def date(self, args):
-        status = self._run_command('getStatus', expect_json=True)
+        status = self._run_command('getStatusEx', expect_json=True)
         original_time_string = self._status_to_time_string(status)
 
         new_time_string = ''
         if args.set:
             self._run_command_expecting_ok_output(f'timeSync:{args.set}')
-            status = self._run_command('getStatus', expect_json=True)
+            status = self._run_command('getStatusEx', expect_json=True)
             new_time_string = f' -> {self._status_to_time_string(status)}'
 
         print(original_time_string + new_time_string)
@@ -461,7 +472,6 @@ def _parse_args():
     main_parser = argparse.ArgumentParser(epilog='For more information about a given command, use "<command> -h"')
 
     common_parser = argparse.ArgumentParser(add_help=False)
-    common_parser.add_argument('--ip-address', type=ipaddress.IPv4Address, help='The IP address of the device')
     common_parser.add_argument('--verbose', '-v', action='store_true', help='Verbose mode')
 
     subparsers = main_parser.add_subparsers(
@@ -506,10 +516,6 @@ def _parse_args():
     subparser = subparsers.add_parser('unmute', parents=[common_parser], help='Unmute')
     subparser.set_defaults(func=LinkplayCli.unmute)
 
-    subparser = subparsers.add_parser('raw', parents=[common_parser], help='Execute a raw Linkplay command')
-    subparser.set_defaults(func=LinkplayCli.raw)
-    subparser.add_argument('command', help='The LinkPlay API command to execute')
-
     subparser = subparsers.add_parser('info', parents=[common_parser], help='Get basic device information')
     subparser.set_defaults(func=LinkplayCli.info)
     subparser.add_argument('--wi-fi', action='store_true', help='List available Wi-Fi access points')
@@ -527,6 +533,14 @@ def _parse_args():
 
     _add_alarm_arg_subparsers(subparsers, common_parser)
 
+    subparser = subparsers.add_parser('raw', parents=[common_parser], help='Execute a raw Linkplay command')
+    subparser.set_defaults(func=LinkplayCli.raw)
+    subparser.add_argument('command', help='The Linkplay API command to execute')
+
+    subparser = subparsers.add_parser('rediscover', parents=[common_parser],
+                                      help='Rediscover Linkplay devices and choose an active device')
+    subparser.add_subparsers(dest='rediscover')
+
     if len(sys.argv) < 2:
         main_parser.print_help()
         sys.exit(0)
@@ -537,8 +551,12 @@ def _parse_args():
 def main():
     args = _parse_args()
 
-    cli = LinkplayCli(args.verbose, args.ip_address)
-    args.func(cli, args)
+    if hasattr(args, 'rediscover'):
+        linkplay_devices = discover_linkplay_devices()
+        prompt_user_to_choose_active_device(linkplay_devices)
+    else:
+        cli = LinkplayCli(args.verbose)
+        args.func(cli, args)
 
 
 if __name__ == '__main__':
