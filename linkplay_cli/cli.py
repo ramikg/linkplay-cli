@@ -289,7 +289,7 @@ class LinkplayCli:
         model = status['project']
         hardware = status['hardware']
 
-        print(f'Device name: {status['DeviceName']}{new_device_string}')
+        print(f'Device name: {status["DeviceName"]}{new_device_string}')
         print(f'Model: {model}')
         print(f'Device time: {self._status_to_time_string(status)}')
         self._print_info_if_not_empty('Wi-Fi IP address', status['apcli0'])
