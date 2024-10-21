@@ -12,6 +12,9 @@ setup(name='linkplay-cli',
       url='https://github.com/ramikg/linkplay-cli',
       version='0.0.7',
       packages=find_packages(),
+      package_data={
+          '': ['certs/*'],
+      },
       install_requires=[
           'async_upnp_client',
           'beautifulsoup4',
