@@ -82,8 +82,11 @@ class LinkplayCli:
 
         return arg
 
+    def _get_api_base_url(self):
+        return f'{self._device.protocol}://{self._device.ip_address}:{self._device.port}'
+
     def _run_command(self, command, expect_json=False):
-        return perform_get_request(f'{self._device.protocol}://{self._device.ip_address}:{self._device.port}/httpapi.asp',
+        return perform_get_request(f'{self._get_api_base_url()}/httpapi.asp',
                                    verbose=self._verbose,
                                    params={'command': command},
                                    expect_json=expect_json)
@@ -401,7 +404,7 @@ class LinkplayCli:
 
     def getsyslog(self, args):
         download_page = self._run_command('getsyslog')  # The download URL is always the same, but needs to be refreshed
-        download_url = f'http://{self._ip_address}/' + BeautifulSoup(download_page, 'lxml').find('a')['href']
+        download_url = self._get_api_base_url() + '/' + BeautifulSoup(download_page, 'lxml').find('a')['href']
         encrypted_log = perform_get_request(download_url, verbose=False, expect_bytes=True)
 
         output_file_dir = Path(args.output_dir or tempfile.gettempdir())
