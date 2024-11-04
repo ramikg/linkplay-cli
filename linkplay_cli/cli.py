@@ -222,27 +222,38 @@ class LinkplayCli:
         self._run_command_expecting_ok_output('setPlayerCmd:mute:0')
         print('Unmuted')
 
-    def volume(self, volume_args):
-        player_status = self._get_player_status()
-        orig_volume = int(player_status['vol'])
-        muted = player_status['mute'] == '1'
+    @staticmethod
+    def _get_new_volume(original_volume: int, volume_argument: str):
+        if volume_argument.startswith('+'):
+            return min(100, original_volume + int(volume_argument[1:]))
+        elif volume_argument.startswith('-'):
+            return max(0, original_volume - int(volume_argument[1:]))
+        else:
+            return min(100, int(volume_argument))
 
-        muted_string = ' (muted)' if muted else ''
+    def volume(self, volume_args):
+        volume_command_is_missing = False
+        try:
+            player_status = self._get_player_status()
+            orig_volume = int(player_status['vol'])
+            muted = player_status['mute'] == '1'
+            muted_string = ' (muted)' if muted else ''
+        except LinkplayCliGetRequestUnknownCommandException:
+            volume_command_is_missing = True
+            orig_volume = self.tcp_uart.get_volume()
+            muted_string = ''
 
         volume_arg = volume_args.new_volume
         if volume_arg is None:
             print(f'Volume: {orig_volume}{muted_string}')
             return
+        new_volume = self._get_new_volume(orig_volume, volume_arg)
 
-        if volume_arg.startswith('+'):
-            new_volume = min(100, orig_volume + int(volume_arg[1:]))
-        elif volume_arg.startswith('-'):
-            new_volume = max(0, orig_volume - int(volume_arg[1:]))
+        if volume_command_is_missing:
+            new_volume = self.tcp_uart.set_volume(new_volume)
         else:
-            # Negative input is interpreted as "decrease volume"
-            new_volume = min(100, int(volume_arg))
+            self._run_command_expecting_ok_output(f'setPlayerCmd:vol:{new_volume}')
 
-        self._run_command_expecting_ok_output(f'setPlayerCmd:vol:{new_volume}')
         print(f'Volume: {orig_volume} -> {new_volume}{muted_string}')
 
     def raw(self, raw_args):
