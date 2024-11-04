@@ -19,6 +19,7 @@ from prettytable import PrettyTable
 from linkplay_cli import config
 from linkplay_cli.discovery import discover_linkplay_devices, is_valid_linkplay_device
 from linkplay_cli.firmware_update import print_latest_version_and_release_date
+from linkplay_cli.tcp_uart import TcpUart
 from linkplay_cli.utils import perform_get_request, LinkplayCliGetRequestUnknownCommandException
 
 
@@ -64,6 +65,15 @@ class LinkplayCli:
         else:
             linkplay_devices = discover_linkplay_devices()
             self._device = prompt_user_to_choose_active_device(linkplay_devices)
+
+        self._tcp_uart = None
+
+    @property
+    def tcp_uart(self):
+        if self._tcp_uart is None:
+            # Only initialize TCP UART if it's being used
+            self._tcp_uart = TcpUart(self._device.ip_address, self._device.tcp_uart_port)
+        return self._tcp_uart
 
     @staticmethod
     def verify_volume_argument(arg):
@@ -236,7 +246,10 @@ class LinkplayCli:
         print(f'Volume: {orig_volume} -> {new_volume}{muted_string}')
 
     def raw(self, raw_args):
-        print(self._run_command(raw_args.command))
+        if raw_args.tcp_uart:
+            print(self.tcp_uart.run_command(raw_args.command))
+        else:
+            print(self._run_command(raw_args.command))
 
     @staticmethod
     def _print_info_if_not_empty(info_name, value):
@@ -538,6 +551,7 @@ def _parse_args():
 
     subparser = subparsers.add_parser('raw', parents=[common_parser], help='Execute a raw Linkplay command')
     subparser.set_defaults(func=LinkplayCli.raw)
+    subparser.add_argument('--tcp-uart', action='store_true', help='Send a TCP UART command')
     subparser.add_argument('command', help='The Linkplay API command to execute')
 
     subparser = subparsers.add_parser('rediscover', parents=[common_parser],

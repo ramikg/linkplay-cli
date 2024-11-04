@@ -28,7 +28,8 @@ def _get_valid_linkplay_device_configuration_from_ip_address(ip_address: IPv4Add
         try:
             status = _get_linkplay_device_status(ip_address, http_port, 'http')
             return Device(ip_address=ip_address, port=http_port, protocol='http',
-                          model=status['project'], name=status['DeviceName'])
+                          model=status['project'], name=status['DeviceName'],
+                          tcp_uart_port=int(status.get('uart_pass_port', config.default_tcp_uart_port)))
         except LinkplayCliGetRequestFailedException:
             pass
 
@@ -36,7 +37,8 @@ def _get_valid_linkplay_device_configuration_from_ip_address(ip_address: IPv4Add
         try:
             status = _get_linkplay_device_status(ip_address, tls_port, 'https')
             return Device(ip_address=ip_address, port=tls_port, protocol='https',
-                          model=status['project'], name=status['DeviceName'])
+                          model=status['project'], name=status['DeviceName'],
+                          tcp_uart_port=int(status.get('uart_pass_port', config.default_tcp_uart_port)))
         except LinkplayCliGetRequestFailedException:
             pass
 

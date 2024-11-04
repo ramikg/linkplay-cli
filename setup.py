@@ -18,6 +18,7 @@ setup(name='linkplay-cli',
       install_requires=[
           'async_upnp_client',
           'beautifulsoup4',
+          'construct>=2.10.70',
           'lxml',
           'prettytable',
           'pycryptodome',

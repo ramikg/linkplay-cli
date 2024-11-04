@@ -9,3 +9,4 @@ log_chunk_size = 10240
 maximum_number_of_alarms = 3
 http_ports = [80]
 tls_ports = [4443]
+default_tcp_uart_port = 8899
