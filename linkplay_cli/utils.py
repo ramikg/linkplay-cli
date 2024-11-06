@@ -1,6 +1,8 @@
+import asyncio
 from http import HTTPStatus
 import urllib.parse
 import warnings
+from typing import Literal
 
 import urllib3
 from urllib3.exceptions import InsecureRequestWarning
@@ -64,3 +66,14 @@ def perform_get_request(url, verbose, params=None, expect_json=False, expect_byt
         return response.content
     else:
         return response.text
+
+def run_async_function_synchronously(future):
+    return asyncio.new_event_loop().run_until_complete(future)
+
+def player_status_string_to_emoji(status: str) -> Literal['▶️', '⏸', '⏹️']:
+    if status in ['play', 'PLAYING']:
+        return '▶️'
+    elif status == ['pause', 'PAUSED_PLAYBACK']:
+        return '⏸'
+    else:
+        return '⏹️'

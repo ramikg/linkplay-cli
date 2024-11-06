@@ -19,8 +19,11 @@ from prettytable import PrettyTable
 from linkplay_cli import config
 from linkplay_cli.discovery import discover_linkplay_devices, is_valid_linkplay_device
 from linkplay_cli.firmware_update import print_latest_version_and_release_date
+from linkplay_cli.player_status import PlayerStatus, UNKNOWN_NAME_STRING, PLAYBACK_MODE_NUMBER_TO_NAME
 from linkplay_cli.tcp_uart import TcpUart
-from linkplay_cli.utils import perform_get_request, LinkplayCliGetRequestUnknownCommandException
+from linkplay_cli.upnp import Upnp
+from linkplay_cli.utils import perform_get_request, LinkplayCliGetRequestUnknownCommandException, \
+    player_status_string_to_emoji
 
 
 class LinkplayCliCommandFailedException(Exception):
@@ -44,15 +47,6 @@ class AlarmTrigger(Enum):
     monthly = 5
 
 
-PLAYBACK_MODE_NUMBER_TO_NAME = {
-    1: "Apple Music",
-    10: "URL",
-    31: "Spotify",
-    40: "AUX",
-    41: "Bluetooth",
-}
-
-
 class LinkplayCli:
     # Rotate calendar.day_name so that it will start with Sunday
     DAY_NAMES = list(calendar.day_name)[-1:] + list(calendar.day_name)[:-1]
@@ -67,13 +61,21 @@ class LinkplayCli:
             self._device = prompt_user_to_choose_active_device(linkplay_devices)
 
         self._tcp_uart = None
+        self._upnp_device = None
 
     @property
     def tcp_uart(self):
         if self._tcp_uart is None:
             # Only initialize TCP UART if it's being used
-            self._tcp_uart = TcpUart(self._device.ip_address, self._device.tcp_uart_port)
+            self._tcp_uart = TcpUart(self._device.ip_address, self._device.tcp_uart_port, self._verbose)
         return self._tcp_uart
+
+    @property
+    def upnp_device(self):
+        if self._upnp_device is None:
+            # Only initialize UPNP device if it's being used
+            self._upnp_device = Upnp(self._device.upnp_location, self._verbose)
+        return self._upnp_device
 
     @staticmethod
     def verify_volume_argument(arg):
@@ -129,41 +131,54 @@ class LinkplayCli:
     def _encode_string(s):
         return bytes(s, 'utf-8').hex()
 
+    def _get_player_status(self) -> PlayerStatus:
+        try:
+            player_status = self._run_command('getPlayerStatusEx', expect_json=True)
+
+            artist = self._decode_string(player_status['Artist'], unescape_html=True) or UNKNOWN_NAME_STRING
+            title = self._decode_string(player_status['Title'], unescape_html=True) or UNKNOWN_NAME_STRING
+            album = self._decode_string(player_status['Album'], unescape_html=True) or UNKNOWN_NAME_STRING
+
+            if int(player_status['curpos']) > int(player_status['totlen']):
+                # There's a bug where the current position is some constant garbage value
+                current_position_string = '?:??'
+            else:
+                current_position_string = self._convert_ms_to_duration_string(player_status['curpos'])
+            total_length_string = self._convert_ms_to_duration_string(player_status['totlen'])
+
+            playback_mode = int(player_status['mode'])
+            if playback_mode in PLAYBACK_MODE_NUMBER_TO_NAME:
+                playback_mode_string = PLAYBACK_MODE_NUMBER_TO_NAME[playback_mode]
+            else:
+                playback_mode_string = UNKNOWN_NAME_STRING
+
+            return PlayerStatus(
+                status_emoji=player_status_string_to_emoji(player_status['status']),
+                total_length_string=total_length_string,
+                current_position_string=current_position_string,
+                playback_mode_string=playback_mode_string,
+                artist=artist,
+                title=title,
+                album=album,
+                volume=int(player_status['vol']),
+                is_muted=player_status['mute'] == '1',
+            )
+
+        except LinkplayCliGetRequestUnknownCommandException:
+            return self.upnp_device.get_player_status()
+
     def now(self, args):
         UNICODE_LTR_MARK = u'\u200E'
-        UNKNOWN_NAME_STRING = 'Unknown'
 
         player_status = self._get_player_status()
 
-        status = player_status['status']
-        artist = self._decode_string(player_status['Artist'], unescape_html=True) or UNKNOWN_NAME_STRING
-        title = self._decode_string(player_status['Title'], unescape_html=True) or UNKNOWN_NAME_STRING
-
-        if status == 'play':
-            status_string = '▶️'
-        elif status == 'pause':
-            status_string = '⏸'
-        else:
-            status_string = '⏹️'
-
-        output_string = f'{status_string}  {artist} - {title}'
+        output_string = f'{player_status.status_emoji}  {player_status.artist} - {player_status.title}'
         if not args.no_time:
-            if int(player_status['curpos']) > int(player_status['totlen']):
-                # There's a bug where the current position is some constant garbage value
-                current_position_in_ms = '?:??'
-            else:
-                current_position_in_ms = self._convert_ms_to_duration_string(player_status['curpos'])
-            total_length_in_ms = self._convert_ms_to_duration_string(player_status['totlen'])
-
-            output_string += f' {UNICODE_LTR_MARK}[{current_position_in_ms}/{total_length_in_ms}]'
+            output_string += f' {UNICODE_LTR_MARK}[{player_status.current_position_string}/{player_status.total_length_string}]'
 
         if args.extra:
-            album = self._decode_string(player_status['Album'], unescape_html=True)
-            if album:
-                output_string += f'\nAlbum: {album}'
-            playback_mode = int(player_status['mode'])
-            if playback_mode in PLAYBACK_MODE_NUMBER_TO_NAME:
-                output_string += f'\nPlayback mode: {PLAYBACK_MODE_NUMBER_TO_NAME[playback_mode]}'
+            output_string += f'\nAlbum: {player_status.album}'
+            output_string += f'\nPlayback mode: {player_status.playback_mode_string}'
 
         print(output_string)
 
@@ -173,9 +188,6 @@ class LinkplayCli:
         output = self._run_command(command)
         if output != OK_MESSAGE:
             raise LinkplayCliCommandFailedException(f'Command {command} failed with output {output}.')
-
-    def _get_player_status(self):
-        return self._run_command('getPlayerStatusEx', expect_json=True)
 
     def pause(self, _):
         self._run_command_expecting_ok_output('setPlayerCmd:pause')
@@ -232,14 +244,11 @@ class LinkplayCli:
             return min(100, int(volume_argument))
 
     def volume(self, volume_args):
-        volume_command_is_missing = False
         try:
             player_status = self._get_player_status()
-            orig_volume = int(player_status['vol'])
-            muted = player_status['mute'] == '1'
-            muted_string = ' (muted)' if muted else ''
+            orig_volume = player_status.volume
+            muted_string = ' (muted)' if player_status.is_muted else ''
         except LinkplayCliGetRequestUnknownCommandException:
-            volume_command_is_missing = True
             orig_volume = self.tcp_uart.get_volume()
             muted_string = ''
 
@@ -249,10 +258,10 @@ class LinkplayCli:
             return
         new_volume = self._get_new_volume(orig_volume, volume_arg)
 
-        if volume_command_is_missing:
-            new_volume = self.tcp_uart.set_volume(new_volume)
-        else:
+        try:
             self._run_command_expecting_ok_output(f'setPlayerCmd:vol:{new_volume}')
+        except LinkplayCliGetRequestUnknownCommandException:
+            new_volume = self.tcp_uart.set_volume(new_volume)
 
         print(f'Volume: {orig_volume} -> {new_volume}{muted_string}')
 

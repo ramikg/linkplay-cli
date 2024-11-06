@@ -12,7 +12,7 @@ pip install linkplay-cli
 
 After installing, run `linkplay-cli -h` to get started.
 
-_(Requirement: Python 3.7+)_
+_(Requirement: Python 3.9+)_
 
 ## FAQ
 

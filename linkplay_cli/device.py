@@ -11,4 +11,5 @@ class Device:
     protocol: RequestProtocol
     model: str
     name: str
+    upnp_location: str
     tcp_uart_port: int
