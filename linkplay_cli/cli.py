@@ -160,6 +160,7 @@ class LinkplayCli:
                 artist=artist,
                 title=title,
                 album=album,
+                playlist=None,
                 volume=int(player_status['vol']),
                 is_muted=player_status['mute'] == '1',
             )
@@ -179,6 +180,8 @@ class LinkplayCli:
         if args.extra:
             output_string += f'\nAlbum: {player_status.album}'
             output_string += f'\nPlayback mode: {player_status.playback_mode_string}'
+            if player_status.playlist:
+                output_string += f'\nPlaylist: {player_status.playlist}'
 
         print(output_string)
 

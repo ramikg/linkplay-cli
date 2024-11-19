@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Optional
 
 UNKNOWN_NAME_STRING = 'Unknown'
 
@@ -22,5 +22,6 @@ class PlayerStatus:
     artist: str
     title: str
     album: str
+    playlist: Optional[str]
     volume: int
     is_muted: bool

@@ -38,6 +38,8 @@ class Upnp:
         title = title_element.get_text() if title_element else UNKNOWN_NAME_STRING
         album_element = track_metadata_xml_soup.find('upnp:album')
         album = album_element.get_text() if album_element else UNKNOWN_NAME_STRING
+        playlist_element = track_metadata_xml_soup.find('song:subid')
+        playlist = playlist_element.get_text() if playlist_element else None
 
         playback_mode = int(info['PlayType'])
         if playback_mode in PLAYBACK_MODE_NUMBER_TO_NAME:
@@ -53,6 +55,7 @@ class Upnp:
             artist=artist,
             title=title,
             album=album,
+            playlist=playlist,
             volume=int(info['CurrentVolume']),
             is_muted=False,  # GetInfoEx doesn't return this information.
         )
