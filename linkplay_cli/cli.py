@@ -1,22 +1,22 @@
 import argparse
 import calendar
-from enum import Enum
 import html
+import logging
 import math
 import re
 import sys
 import tempfile
 import time
-
-from linkplay_cli.configure import prompt_user_to_choose_active_device, \
-    load_configuration_from_file
+from enum import Enum
 from pathlib import Path
 
-from bs4 import BeautifulSoup
 from Crypto.Cipher import ARC4
+from bs4 import BeautifulSoup
 from prettytable import PrettyTable
 
 from linkplay_cli import config
+from linkplay_cli.configure import prompt_user_to_choose_active_device, \
+    load_configuration_from_file
 from linkplay_cli.discovery import discover_linkplay_devices, is_valid_linkplay_device
 from linkplay_cli.firmware_update import print_latest_version_and_release_date
 from linkplay_cli.player_status import PlayerStatus, UNKNOWN_NAME_STRING, PLAYBACK_MODE_NUMBER_TO_NAME
@@ -51,8 +51,7 @@ class LinkplayCli:
     # Rotate calendar.day_name so that it will start with Sunday
     DAY_NAMES = list(calendar.day_name)[-1:] + list(calendar.day_name)[:-1]
 
-    def __init__(self, verbose) -> None:
-        self._verbose = verbose
+    def __init__(self) -> None:
         configuration = load_configuration_from_file()
         if configuration.active_device and is_valid_linkplay_device(configuration.active_device):
             self._device = configuration.active_device
@@ -67,14 +66,14 @@ class LinkplayCli:
     def tcp_uart(self):
         if self._tcp_uart is None:
             # Only initialize TCP UART if it's being used
-            self._tcp_uart = TcpUart(self._device.ip_address, self._device.tcp_uart_port, self._verbose)
+            self._tcp_uart = TcpUart(self._device.ip_address, self._device.tcp_uart_port)
         return self._tcp_uart
 
     @property
     def upnp_device(self):
         if self._upnp_device is None:
             # Only initialize UPNP device if it's being used
-            self._upnp_device = Upnp(self._device.upnp_location, self._verbose)
+            self._upnp_device = Upnp(self._device.upnp_location)
         return self._upnp_device
 
     @staticmethod
@@ -99,7 +98,6 @@ class LinkplayCli:
 
     def _run_command(self, command, expect_json=False):
         return perform_get_request(f'{self._get_api_base_url()}/httpapi.asp',
-                                   verbose=self._verbose,
                                    params={'command': command},
                                    expect_json=expect_json)
 
@@ -282,7 +280,7 @@ class LinkplayCli:
     def _print_latest_version_and_release_date(self, model, hardware):
         update_server = self._run_command('GetUpdateServer')
 
-        print_latest_version_and_release_date(update_server, model, hardware, self._verbose)
+        print_latest_version_and_release_date(update_server, model, hardware)
 
     @staticmethod
     def _parse_timezone(timezone_string):
@@ -441,7 +439,7 @@ class LinkplayCli:
     def getsyslog(self, args):
         download_page = self._run_command('getsyslog')  # The download URL is always the same, but needs to be refreshed
         download_url = self._get_api_base_url() + '/' + BeautifulSoup(download_page, 'lxml').find('a')['href']
-        encrypted_log = perform_get_request(download_url, verbose=False, expect_bytes=True)
+        encrypted_log = perform_get_request(download_url, expect_bytes=True)
 
         output_file_dir = Path(args.output_dir or tempfile.gettempdir())
         output_file_dir.mkdir(parents=True, exist_ok=True)
@@ -591,11 +589,14 @@ def _parse_args():
 def main():
     args = _parse_args()
 
+    log_level = logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig(level=log_level, format='[%(levelname)s] %(message)s')
+
     if hasattr(args, 'rediscover'):
         linkplay_devices = discover_linkplay_devices()
         prompt_user_to_choose_active_device(linkplay_devices)
     else:
-        cli = LinkplayCli(args.verbose)
+        cli = LinkplayCli()
         args.func(cli, args)
 
 

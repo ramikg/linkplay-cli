@@ -1,14 +1,14 @@
 import asyncio
-from http import HTTPStatus
+import logging
 import urllib.parse
 import warnings
+from http import HTTPStatus
 from typing import Literal
 
 import urllib3
 from urllib3.exceptions import InsecureRequestWarning
 
 from linkplay_cli import config
-
 
 UNKNOWN_COMMAND_STRING = "unknown command"
 
@@ -44,7 +44,7 @@ class LinkplayCliGetRequestUnknownCommandException(Exception):
     pass
 
 
-def perform_get_request(url, verbose, params=None, expect_json=False, expect_bytes=False):
+def perform_get_request(url, params=None, expect_json=False, expect_bytes=False):
     try:
         response = requests.get(url, params=params, timeout=config.get_request_timeout_seconds, cert=str(config.client_certificate_path), verify=False)
     except requests.exceptions.RequestException as e:
@@ -56,8 +56,7 @@ def perform_get_request(url, verbose, params=None, expect_json=False, expect_byt
         raise LinkplayCliGetRequestFailedException(verbose_message)
     if response.text.lower() == UNKNOWN_COMMAND_STRING:
         raise LinkplayCliGetRequestUnknownCommandException(verbose_message)
-    if verbose:
-        print(verbose_message)
+    logging.debug(verbose_message)
 
     response.encoding = 'utf-8'
     if expect_json:

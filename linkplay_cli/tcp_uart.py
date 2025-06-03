@@ -1,3 +1,4 @@
+import logging
 import re
 import socket
 from ipaddress import IPv4Address
@@ -22,10 +23,9 @@ TCP_UART_MESSAGE_STRUCT = Struct(
 
 
 class TcpUart:
-    def __init__(self, ip_address: IPv4Address, port: int, verbose: bool):
+    def __init__(self, ip_address: IPv4Address, port: int):
         self._ip_address = ip_address
         self._port = port
-        self._verbose = verbose
         self._socket = socket.create_connection((str(self._ip_address), self._port))
 
     def __del__(self):
@@ -34,14 +34,12 @@ class TcpUart:
             self._socket.close()
 
     def run_command(self, command):
-        if self._verbose:
-            print(command)
+        logging.debug(command)
 
         self._socket.sendall(TCP_UART_MESSAGE_STRUCT.build(dict(payload=bytes(command, 'utf-8'))))
         response_bytes = self._socket.recv(NUMBER_OF_RESPONSE_BYTES_TO_READ)
         response = TCP_UART_MESSAGE_STRUCT.parse(response_bytes)
-        if self._verbose:
-            print(response.payload)
+        logging.debug(response.payload)
 
         if response.payload.startswith(TCP_UART_UNKNOWN_COMMAND_RESPONSE):
             raise LinkplayCliGetRequestUnknownCommandException(response.payload)

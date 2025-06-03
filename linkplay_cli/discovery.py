@@ -1,6 +1,6 @@
+import urllib.parse
 from ipaddress import IPv4Address
 from typing import List
-import urllib.parse
 
 from async_upnp_client.search import async_search
 
@@ -20,8 +20,7 @@ UPNP_DEVICE_TYPE = 'urn:schemas-upnp-org:device:MediaRenderer:1'
 def _get_linkplay_device_status(ip_address: IPv4Address, port: int, protocol: RequestProtocol):
     return perform_get_request(
         f'{protocol}://{ip_address}:{port}/httpapi.asp?command=getStatusEx',
-        expect_json=True,
-        verbose=False)
+        expect_json=True)
 
 
 def _get_valid_linkplay_device_configuration_from_upnp_location(upnp_location: str) -> Device | None:

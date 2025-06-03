@@ -1,3 +1,5 @@
+import logging
+
 from bs4 import BeautifulSoup
 
 from linkplay_cli.utils import perform_get_request, LinkplayCliGetRequestFailedException
@@ -8,7 +10,7 @@ class LinkplayCliFirmwareUpdateNotFoundException(Exception):
 
 
 def _url_to_xml_soup(url):
-    response = perform_get_request(url, verbose=False)
+    response = perform_get_request(url)
     return BeautifulSoup(response, 'xml')
 
 
@@ -36,25 +38,23 @@ def _find_version_file_url(update_server_url, model, hardware):
     return getattr(product_soup.product, 'ver-url').getText()
 
 
-def print_latest_version_and_release_date(update_server_url, model, hardware, verbose):
+def print_latest_version_and_release_date(update_server_url, model, hardware):
     VERSION_FILE_VERSION_LINE = 0
     VERSION_FILE_RELEASE_DATE_LINE = 5
     HARDWARE_PREFIX = 'WiiMu-'
 
     try:
         version_file_url = _find_version_file_url(update_server_url, model, HARDWARE_PREFIX + hardware)
-        version_file_lines = perform_get_request(version_file_url, verbose=verbose).splitlines()
+        version_file_lines = perform_get_request(version_file_url).splitlines()
     except (AttributeError, LinkplayCliGetRequestFailedException, LinkplayCliFirmwareUpdateNotFoundException) as e:
-        if verbose:
-            print(f'Failed retrieving version file from server: {e}, {update_server_url}')
+        logging.debug(f'Failed retrieving version file from server: {e}, {update_server_url}')
         return
 
     try:
         version = version_file_lines[VERSION_FILE_VERSION_LINE].split('.', maxsplit=1)[1]
         release_date = version_file_lines[VERSION_FILE_RELEASE_DATE_LINE]
     except (AttributeError, IndexError, LinkplayCliGetRequestFailedException) as e:
-        if verbose:
-            print(f'Failed parsing version file: {e}, {version_file_lines}')
+        logging.debug(f'Failed parsing version file: {e}, {version_file_lines}')
         return
 
     print(f'Latest firmware version: {version} (released {release_date})')

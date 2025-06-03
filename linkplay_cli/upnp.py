@@ -1,3 +1,5 @@
+import logging
+
 from async_upnp_client.aiohttp import AiohttpRequester
 from async_upnp_client.client import UpnpDevice, UpnpAction
 from async_upnp_client.client_factory import UpnpFactory
@@ -8,8 +10,7 @@ from linkplay_cli.utils import run_async_function_synchronously, player_status_s
 
 
 class Upnp:
-    def __init__(self, upnp_location: str, verbose: bool):
-        self._verbose = verbose
+    def __init__(self, upnp_location: str):
         self._requester = AiohttpRequester()
         self._factory = UpnpFactory(self._requester)
         self._device: UpnpDevice = run_async_function_synchronously(self._factory.async_create_device(upnp_location))
@@ -26,8 +27,7 @@ class Upnp:
     def get_player_status(self):
         get_info_ex_action = self._av_transport.action('GetInfoEx')
         info = self._call_action_synchronously(get_info_ex_action)
-        if self._verbose:
-            print(info)
+        logging.debug(info)
 
         track_metadata = info['TrackMetaData']
         track_metadata_xml_soup = BeautifulSoup(track_metadata, 'xml')
