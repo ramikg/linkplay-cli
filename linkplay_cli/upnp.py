@@ -34,7 +34,7 @@ class Upnp:
     def _get_playlist_owner(track_source: str) -> Optional[str]:
         match_result = re.match(PLAYLIST_ID_IN_TRACK_SOURCE_REGEX, track_source)
         if not match_result:
-            logging.debug(f'Failed parsing TrackSource: {track_source}')
+            logging.debug(f'TrackSource is not a Spotify playlist: {track_source}')
             return None
         playlist_id = match_result.group('playlist_id')
 
