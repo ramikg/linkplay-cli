@@ -14,6 +14,11 @@ After installing, run `linkplay-cli -h` to get started.
 
 _(Requirement: Python 3.9+)_
 
+## Shell completion
+
+A zsh completion script is available at [`completions/_linkplay-cli`](completions/_linkplay-cli).
+See the comments at the top of the file to enable it.
+
 ## FAQ
 
 ### I'm getting the error `command not found: linkplay-cli` 

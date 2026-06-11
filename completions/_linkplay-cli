@@ -1,0 +1,193 @@
+#compdef linkplay-cli
+# zsh completion for linkplay-cli
+#
+# Installation:
+#   1. Place this file somewhere in your $fpath, named `_linkplay-cli`, e.g.:
+#        mkdir -p ~/.zsh/completions
+#        cp _linkplay-cli ~/.zsh/completions/
+#   2. Ensure that directory is on your fpath BEFORE compinit, e.g. in ~/.zshrc:
+#        fpath=(~/.zsh/completions $fpath)
+#        autoload -Uz compinit && compinit
+#   3. Restart your shell (or `exec zsh`).
+
+_linkplay-cli() {
+  local curcontext="$curcontext" state line ret=1
+  typeset -A opt_args
+
+  _arguments -C \
+    '(-h --help)'{-h,--help}'[show help message and exit]' \
+    '1: :_linkplay-cli_commands' \
+    '*::arg:->args' \
+    && ret=0
+
+  case $state in
+    args)
+      case $line[1] in
+        now)
+          _arguments \
+            '(-h --help)'{-h,--help}'[show help message and exit]' \
+            '(-v --verbose)'{-v,--verbose}'[Verbose mode]' \
+            '--no-time[Do not display the current position and length]' \
+            '--extra[Display additional information]' \
+            && ret=0
+          ;;
+        play)
+          _arguments \
+            '(-h --help)'{-h,--help}'[show help message and exit]' \
+            '(-v --verbose)'{-v,--verbose}'[Verbose mode]' \
+            '--url[URL to play from]:url:_urls' \
+            && ret=0
+          ;;
+        seek)
+          _arguments \
+            '(-h --help)'{-h,--help}'[show help message and exit]' \
+            '(-v --verbose)'{-v,--verbose}'[Verbose mode]' \
+            '1: :_message -e position "position HH\:MM\:SS / MM\:SS / SS  (e.g. 4\:21 or 261)"' \
+            && ret=0
+          ;;
+        volume)
+          _arguments \
+            '(-h --help)'{-h,--help}'[show help message and exit]' \
+            '(-v --verbose)'{-v,--verbose}'[Verbose mode]' \
+            '1: :_linkplay-cli_volume' \
+            && ret=0
+          ;;
+        info)
+          _arguments \
+            '(-h --help)'{-h,--help}'[show help message and exit]' \
+            '(-v --verbose)'{-v,--verbose}'[Verbose mode]' \
+            '--wi-fi[List available Wi-Fi access points]' \
+            '--set-device-name[Set device name]: :_message -e name "new device name (free text)"' \
+            && ret=0
+          ;;
+        date)
+          _arguments \
+            '(-h --help)'{-h,--help}'[show help message and exit]' \
+            '(-v --verbose)'{-v,--verbose}'[Verbose mode]' \
+            '--set[Set the date and time]: :_message -e datetime "datetime as YYYYMMDDHHMMSS"' \
+            && ret=0
+          ;;
+        getsyslog)
+          _arguments \
+            '(-h --help)'{-h,--help}'[show help message and exit]' \
+            '(-v --verbose)'{-v,--verbose}'[Verbose mode]' \
+            '--output-dir[Output directory (defaults to tempdir)]:directory:_files -/' \
+            && ret=0
+          ;;
+        raw)
+          _arguments \
+            '(-h --help)'{-h,--help}'[show help message and exit]' \
+            '(-v --verbose)'{-v,--verbose}'[Verbose mode]' \
+            '--tcp-uart[Send a TCP UART command]' \
+            '1: :_message -e command "raw Linkplay API command"' \
+            && ret=0
+          ;;
+        alarm)
+          _linkplay-cli_alarm && ret=0
+          ;;
+        rediscover|pause|next|previous|mute|unmute)
+          _arguments \
+            '(-h --help)'{-h,--help}'[show help message and exit]' \
+            '(-v --verbose)'{-v,--verbose}'[Verbose mode]' \
+            && ret=0
+          ;;
+      esac
+      ;;
+  esac
+
+  return ret
+}
+
+_linkplay-cli_commands() {
+  local -a commands
+  commands=(
+    'now:Show what'\''s playing now'
+    'pause:Pause current track'
+    'play:Resume current track or play from URL'
+    'next:Play next track'
+    'previous:Play previous track'
+    'seek:Seek to a specific track position'
+    'volume:Set/get current volume'
+    'mute:Mute'
+    'unmute:Unmute'
+    'info:Get basic device information'
+    'date:Print and set device date and time'
+    'getsyslog:Download device log file'
+    'alarm:Control alarm clocks'
+    'raw:Execute a raw Linkplay command'
+    'rediscover:Rediscover Linkplay devices and choose an active device'
+  )
+  _describe -t commands 'linkplay-cli command' commands
+}
+
+_linkplay-cli_volume() {
+  local -a levels
+  levels=({0..100})
+  # absolute levels 0-100; you can also type +N / -N to adjust, or omit to show
+  _describe -t levels 'volume level 0-100 (or +N/-N to adjust, omit to show)' levels
+}
+
+_linkplay-cli_alarm() {
+  local curcontext="$curcontext" state line ret=1
+  typeset -A opt_args
+
+  _arguments -C \
+    '(-h --help)'{-h,--help}'[show help message and exit]' \
+    '(-v --verbose)'{-v,--verbose}'[Verbose mode]' \
+    '1: :_linkplay-cli_alarm_commands' \
+    '*::arg:->args' \
+    && ret=0
+
+  case $state in
+    args)
+      case $line[1] in
+        set)
+          _arguments \
+            '(-h --help)'{-h,--help}'[show help message and exit]' \
+            '(-v --verbose)'{-v,--verbose}'[Verbose mode]' \
+            '--index[The alarm index]:index:(0 1 2)' \
+            '(--once --daily --weekly --monthly)--once[Set up a one-time alarm]' \
+            '(--once --daily --weekly --monthly)--daily[Set up a daily alarm]' \
+            '(--once --daily --weekly --monthly)--weekly[Set up a weekly alarm]' \
+            '(--once --daily --weekly --monthly)--monthly[Set up a monthly alarm]' \
+            '(--command --play --stop)--command[Execute a command when triggered]: :_message -e command "command to run"' \
+            '(--command --play --stop)--play[Play a URL when triggered]:url:_urls' \
+            '(--command --play --stop)--stop[Stop playing when triggered]' \
+            '--time[Alarm time (HHMMSS)]: :_message -e time "alarm time as HHMMSS"' \
+            '--year[Alarm year (YYYY)]: :_message -e year "year as YYYY"' \
+            '--month[Alarm month (MM)]: :_message -e month "month as MM"' \
+            '--day[Alarm day (weekday name or day number)]:day:(monday tuesday wednesday thursday friday saturday sunday)' \
+            && ret=0
+          ;;
+        delete)
+          _arguments \
+            '(-h --help)'{-h,--help}'[show help message and exit]' \
+            '(-v --verbose)'{-v,--verbose}'[Verbose mode]' \
+            '--index[The index of the alarm to delete]:index:(0 1 2)' \
+            && ret=0
+          ;;
+        list|stop)
+          _arguments \
+            '(-h --help)'{-h,--help}'[show help message and exit]' \
+            '(-v --verbose)'{-v,--verbose}'[Verbose mode]' \
+            && ret=0
+          ;;
+      esac
+      ;;
+  esac
+
+  return ret
+}
+
+_linkplay-cli_alarm_commands() {
+  local -a commands
+  commands=(
+    'list:List existing alarms'
+    'set:Set alarm (optionally overwriting an existing one)'
+    'stop:Stop the alarm'
+    'delete:Delete alarm'
+  )
+  _describe -t commands 'alarm subcommand' commands
+}
+
+_linkplay-cli "$@"
