@@ -525,6 +525,22 @@ def _add_alarm_arg_subparsers(top_subparsers, common_parser):
     subparser.add_argument('--index', help='The index of the alarm to delete')
 
 
+def _rediscover(_args):
+    linkplay_devices = discover_linkplay_devices()
+    prompt_user_to_choose_active_device(linkplay_devices)
+
+
+def _add_config_arg_subparsers(top_subparsers, common_parser):
+    parent_subparser = top_subparsers.add_parser('config', parents=[common_parser],
+                                                 help='Configure linkplay-cli itself')
+    parent_subparser.set_defaults(func=lambda _args: parent_subparser.print_help(), requires_device=False)
+    config_subparsers = parent_subparser.add_subparsers(title='Config subcommands')
+
+    subparser = config_subparsers.add_parser('rediscover', parents=[common_parser],
+                                             help='Rediscover Linkplay devices and choose an active device')
+    subparser.set_defaults(func=_rediscover)
+
+
 def _parse_args():
     main_parser = argparse.ArgumentParser(epilog='For more information about a given command, use "<command> -h"')
 
@@ -595,9 +611,7 @@ def _parse_args():
     subparser.add_argument('--tcp-uart', action='store_true', help='Send a TCP UART command')
     subparser.add_argument('command', help='The Linkplay API command to execute')
 
-    subparser = subparsers.add_parser('rediscover', parents=[common_parser],
-                                      help='Rediscover Linkplay devices and choose an active device')
-    subparser.add_subparsers(dest='rediscover')
+    _add_config_arg_subparsers(subparsers, common_parser)
 
     if len(sys.argv) < 2:
         main_parser.print_help()
@@ -612,12 +626,11 @@ def main():
     log_level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(level=log_level, format='[%(levelname)s] %(message)s')
 
-    if hasattr(args, 'rediscover'):
-        linkplay_devices = discover_linkplay_devices()
-        prompt_user_to_choose_active_device(linkplay_devices)
-    else:
+    if getattr(args, 'requires_device', True):
         cli = LinkplayCli()
         args.func(cli, args)
+    else:
+        args.func(args)
 
 
 if __name__ == '__main__':
