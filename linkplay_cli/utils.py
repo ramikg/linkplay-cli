@@ -46,7 +46,7 @@ class LinkplayCliGetRequestUnknownCommandException(Exception):
 
 def perform_get_request(url, params=None, expect_json=False, expect_bytes=False):
     try:
-        response = requests.get(url, params=params, timeout=config.get_request_timeout_seconds, cert=str(config.client_certificate_path), verify=False)
+        response = requests.get(url, params=params, timeout=config.http_request_timeout_seconds, cert=str(config.client_certificate_path), verify=False)
     except requests.exceptions.RequestException as e:
         raise LinkplayCliGetRequestFailedException(str(e))
 

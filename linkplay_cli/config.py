@@ -1,6 +1,6 @@
 from pathlib import Path
 
-get_request_timeout_seconds = 5
+http_request_timeout_seconds = 5
 upnp_discover_timeout_message = 5
 configuration_file_path = Path.home() / '.linkplaycli.config'
 client_certificate_path = Path(__file__).parent / 'certs/linkplay_client.pem'
