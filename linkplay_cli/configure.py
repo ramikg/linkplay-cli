@@ -12,11 +12,12 @@ from linkplay_cli.discovery import LinkplayCliDeviceNotFoundException
 @dataclass
 class Configuration:
     devices: List[Device]
+    # The default device
     active_device: Optional[Device]
 
-def save_configuration_to_file(devices: List[Device], active_device: Device) -> None:
+def save_configuration_to_file(devices: List[Device], default_device: Device) -> None:
     with open(config.configuration_file_path, 'wb') as configuration_file:
-        configuration = Configuration(devices=devices, active_device=active_device)
+        configuration = Configuration(devices=devices, active_device=default_device)
         pickle.dump(configuration, configuration_file)
 
 def load_configuration_from_file() -> Configuration:
@@ -28,7 +29,15 @@ def load_configuration_from_file() -> Configuration:
         return Configuration(devices=[], active_device=None)
 
 
-def prompt_user_to_choose_active_device(devices: List[Device]) -> Device:
+def find_device_by_name_or_ip(devices: List[Device], name_or_ip: str) -> Optional[Device]:
+    matches = [device for device in devices if name_or_ip in (device.name, str(device.ip_address))]
+    if len(matches) > 1:
+        raise LinkplayCliDeviceNotFoundException(
+            f'Multiple devices match "{name_or_ip}": {", ".join(f"{d.name} ({d.ip_address})" for d in matches)}')
+    return matches[0] if matches else None
+
+
+def prompt_user_to_choose_default_device(devices: List[Device]) -> Device:
     if not devices:
         raise LinkplayCliDeviceNotFoundException('No devices to choose from.')
 
@@ -46,8 +55,7 @@ def prompt_user_to_choose_active_device(devices: List[Device]) -> Device:
         if choice.isdigit() and 0 <= int(choice) <= len(devices) - 1:
             choice_index = int(choice)
         else:
-            print('Invalid choice. Active device unchanged.')
-            raise LinkplayCliDeviceNotFoundException('Invalid device choice.')
+            raise LinkplayCliDeviceNotFoundException('Invalid choice. Default device unchanged.')
 
     save_configuration_to_file(devices, devices[choice_index])
     print(f'Choosing {devices[choice_index]}.')

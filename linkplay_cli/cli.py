@@ -11,15 +11,17 @@ import tempfile
 import time
 from enum import Enum
 from pathlib import Path
+from typing import Optional
 
 from Crypto.Cipher import ARC4
 from bs4 import BeautifulSoup
 from prettytable import PrettyTable
 
 from linkplay_cli import config
-from linkplay_cli.configure import prompt_user_to_choose_active_device, \
-    load_configuration_from_file
-from linkplay_cli.discovery import discover_linkplay_devices, is_valid_linkplay_device
+from linkplay_cli.configure import prompt_user_to_choose_default_device, \
+    load_configuration_from_file, find_device_by_name_or_ip
+from linkplay_cli.discovery import discover_linkplay_devices, is_valid_linkplay_device, \
+    LinkplayCliDeviceNotFoundException
 from linkplay_cli.firmware_update import print_latest_version_and_release_date
 from linkplay_cli.player_status import PlayerStatus, UNKNOWN_NAME_STRING, PLAYBACK_MODE_NUMBER_TO_NAME
 from linkplay_cli.spotify import get_playlist_string
@@ -54,13 +56,18 @@ class LinkplayCli:
     # Rotate calendar.day_name so that it will start with Sunday
     DAY_NAMES = list(calendar.day_name)[-1:] + list(calendar.day_name)[:-1]
 
-    def __init__(self) -> None:
+    def __init__(self, device_name_or_ip: Optional[str] = None) -> None:
         configuration = load_configuration_from_file()
-        if configuration.active_device and is_valid_linkplay_device(configuration.active_device):
+        if device_name_or_ip:
+            self._device = find_device_by_name_or_ip(configuration.devices, device_name_or_ip)
+            if self._device is None:
+                raise LinkplayCliDeviceNotFoundException(
+                    f'No cached device matches "{device_name_or_ip}". Run `linkplay-cli config rediscover`.')
+        elif configuration.active_device and is_valid_linkplay_device(configuration.active_device):
             self._device = configuration.active_device
         else:
             linkplay_devices = discover_linkplay_devices()
-            self._device = prompt_user_to_choose_active_device(linkplay_devices)
+            self._device = prompt_user_to_choose_default_device(linkplay_devices)
 
         self._tcp_uart = None
         self._upnp_device = None
@@ -527,7 +534,7 @@ def _add_alarm_arg_subparsers(top_subparsers, common_parser):
 
 def _rediscover(_args):
     linkplay_devices = discover_linkplay_devices()
-    prompt_user_to_choose_active_device(linkplay_devices)
+    prompt_user_to_choose_default_device(linkplay_devices)
 
 
 def _add_config_arg_subparsers(top_subparsers, common_parser):
@@ -537,15 +544,19 @@ def _add_config_arg_subparsers(top_subparsers, common_parser):
     config_subparsers = parent_subparser.add_subparsers(title='Config subcommands')
 
     subparser = config_subparsers.add_parser('rediscover', parents=[common_parser],
-                                             help='Rediscover Linkplay devices and choose an active device')
+                                             help='Rediscover Linkplay devices and choose a default device')
     subparser.set_defaults(func=_rediscover)
 
 
 def _parse_args():
     main_parser = argparse.ArgumentParser(epilog='For more information about a given command, use "<command> -h"')
 
-    common_parser = argparse.ArgumentParser(add_help=False)
-    common_parser.add_argument('--verbose', '-v', action='store_true', help='Verbose mode')
+    base_parser = argparse.ArgumentParser(add_help=False)
+    base_parser.add_argument('--verbose', '-v', action='store_true', help='Verbose mode')
+
+    common_parser = argparse.ArgumentParser(add_help=False, parents=[base_parser])
+    common_parser.add_argument('--device', metavar='NAME_OR_IP_ADDRESS',
+                               help='Use this device (by name or IP address) instead of the default device')
 
     subparsers = main_parser.add_subparsers(
         description='Note that some commands do not work in some scenarios (e.g. when playing from YouTube)'
@@ -611,7 +622,7 @@ def _parse_args():
     subparser.add_argument('--tcp-uart', action='store_true', help='Send a TCP UART command')
     subparser.add_argument('command', help='The Linkplay API command to execute')
 
-    _add_config_arg_subparsers(subparsers, common_parser)
+    _add_config_arg_subparsers(subparsers, base_parser)
 
     if len(sys.argv) < 2:
         main_parser.print_help()
@@ -626,11 +637,14 @@ def main():
     log_level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(level=log_level, format='[%(levelname)s] %(message)s')
 
-    if getattr(args, 'requires_device', True):
-        cli = LinkplayCli()
-        args.func(cli, args)
-    else:
-        args.func(args)
+    try:
+        if getattr(args, 'requires_device', True):
+            cli = LinkplayCli(args.device)
+            args.func(cli, args)
+        else:
+            args.func(args)
+    except LinkplayCliDeviceNotFoundException as e:
+        sys.exit(str(e))
 
 
 if __name__ == '__main__':
