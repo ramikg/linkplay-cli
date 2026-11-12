@@ -22,7 +22,8 @@ from linkplay_cli.configure import prompt_user_to_choose_default_device, \
     load_configuration_from_file, find_device_by_name_or_ip
 from linkplay_cli.discovery import discover_linkplay_devices, is_valid_linkplay_device, \
     LinkplayCliDeviceNotFoundException
-from linkplay_cli.firmware_update import print_latest_version_and_release_date
+from linkplay_cli.firmware_update import print_latest_version_and_release_date, \
+    print_latest_version_and_release_date_from_ota_check
 from linkplay_cli.player_status import PlayerStatus, UNKNOWN_NAME_STRING, PLAYBACK_MODE_NUMBER_TO_NAME
 from linkplay_cli.spotify import get_playlist_string
 from linkplay_cli.tcp_uart import TcpUart
@@ -294,10 +295,12 @@ class LinkplayCli:
         if value not in ['', '0']:
             print(f'{info_name}: {value}')
 
-    def _print_latest_version_and_release_date(self, model, hardware):
-        update_server = self._run_command('GetUpdateServer')
+    def _print_latest_version_and_release_date(self, status):
+        if print_latest_version_and_release_date_from_ota_check(status['uuid']):
+            return
 
-        print_latest_version_and_release_date(update_server, model, hardware)
+        update_server = self._run_command('GetUpdateServer')
+        print_latest_version_and_release_date(update_server, status['project'], status['hardware'])
 
     @staticmethod
     def _parse_timezone(timezone_string):
@@ -356,7 +359,7 @@ class LinkplayCli:
         print(f'Firmware version: {status["firmware"]} (released {status["Release"]})')
 
         try:
-            self._print_latest_version_and_release_date(model, hardware)
+            self._print_latest_version_and_release_date(status)
         except LinkplayCliGetRequestUnknownCommandException:
             pass
 
