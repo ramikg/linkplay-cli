@@ -52,6 +52,9 @@ class AlarmTrigger(Enum):
     monthly = 5
 
 
+REDISCOVER_COMMAND = 'linkplay-cli config rediscover'
+
+
 class LinkplayCli:
     # Rotate calendar.day_name so that it will start with Sunday
     DAY_NAMES = list(calendar.day_name)[-1:] + list(calendar.day_name)[:-1]
@@ -62,7 +65,7 @@ class LinkplayCli:
             self._device = find_device_by_name_or_ip(configuration.devices, device_name_or_ip)
             if self._device is None:
                 raise LinkplayCliDeviceNotFoundException(
-                    f'No cached device matches "{device_name_or_ip}". Run `linkplay-cli config rediscover`.')
+                    f'No cached device matches "{device_name_or_ip}". Run `{REDISCOVER_COMMAND}`.')
         elif configuration.active_device and is_valid_linkplay_device(configuration.active_device):
             self._device = configuration.active_device
         else:
@@ -534,7 +537,16 @@ def _add_alarm_arg_subparsers(top_subparsers, common_parser):
 
 def _rediscover(_args):
     linkplay_devices = discover_linkplay_devices()
-    prompt_user_to_choose_default_device(linkplay_devices)
+    prompt_user_to_choose_default_device(linkplay_devices, load_configuration_from_file().active_device)
+
+
+def _devices(_args):
+    configuration = load_configuration_from_file()
+    if not configuration.devices:
+        print(f'No cached devices. Run `{REDISCOVER_COMMAND}`.')
+        return
+
+    prompt_user_to_choose_default_device(configuration.devices, configuration.active_device)
 
 
 def _add_config_arg_subparsers(top_subparsers, common_parser):
@@ -546,6 +558,10 @@ def _add_config_arg_subparsers(top_subparsers, common_parser):
     subparser = config_subparsers.add_parser('rediscover', parents=[common_parser],
                                              help='Rediscover Linkplay devices and choose a default device')
     subparser.set_defaults(func=_rediscover)
+
+    subparser = config_subparsers.add_parser('devices', parents=[common_parser],
+                                             help='List cached devices and choose a default device')
+    subparser.set_defaults(func=_devices)
 
 
 def _parse_args():
